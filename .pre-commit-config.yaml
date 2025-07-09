@@ -1,0 +1,160 @@
+# Pre-commit hooks for APM Solution
+# Install: pip install pre-commit
+# Setup: pre-commit install
+# Run manually: pre-commit run --all-files
+
+default_language_version:
+  golang: 1.21
+
+repos:
+  # General file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: check-yaml
+        args: [--unsafe]
+      - id: check-json
+      - id: check-added-large-files
+        args: [--maxkb=1000]
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: check-executables-have-shebangs
+      - id: check-symlinks
+      - id: destroyed-symlinks
+      - id: detect-private-key
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: no-commit-to-branch
+        args: [--branch, main, --branch, master]
+
+  # Go specific hooks
+  - repo: https://github.com/golangci/golangci-lint
+    rev: v1.55.2
+    hooks:
+      - id: golangci-lint
+        args: [--timeout=5m]
+
+  # Go formatting
+  - repo: https://github.com/dnephin/pre-commit-golang
+    rev: v0.5.1
+    hooks:
+      - id: go-fmt
+      - id: go-imports
+      - id: go-vet
+      - id: go-mod-tidy
+      - id: go-unit-tests
+        args: [-short]
+      - id: go-build
+      - id: go-cyclo
+        args: [-over=15]
+
+  # Security scanning
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.4.0
+    hooks:
+      - id: detect-secrets
+        args: [--baseline, .secrets.baseline]
+
+  # Dockerfile linting
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.12.0
+    hooks:
+      - id: hadolint-docker
+        args: [--ignore, DL3008, --ignore, DL3009]
+
+  # YAML linting
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.33.0
+    hooks:
+      - id: yamllint
+        args: [-c=.yamllint.yml]
+
+  # Markdown linting
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.38.0
+    hooks:
+      - id: markdownlint
+        args: [--fix]
+
+  # Shell script linting
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.9.0.6
+    hooks:
+      - id: shellcheck
+
+  # Kubernetes manifest validation
+  - repo: https://github.com/syntaqx/kube-score
+    rev: v1.17.0
+    hooks:
+      - id: kube-score
+        files: \.(yaml|yml)$
+        exclude: .*(template|gitlab-ci|github).*
+
+  # Commit message linting
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v3.13.0
+    hooks:
+      - id: commitizen
+        stages: [commit-msg]
+
+  # License header check
+  - repo: https://github.com/Lucas-C/pre-commit-hooks
+    rev: v1.5.4
+    hooks:
+      - id: insert-license
+        name: Add license header to Go files
+        files: \.go$
+        exclude: \.pb\.go$|vendor/
+        args:
+          - --license-filepath
+          - LICENSE-HEADER.txt
+          - --comment-style
+          - //
+
+# Custom local hooks
+  - repo: local
+    hooks:
+      - id: go-generate
+        name: Check go generate
+        entry: bash -c 'go generate ./... && git diff --exit-code'
+        language: system
+        pass_filenames: false
+        files: \.go$
+
+      - id: go-mod-vendor
+        name: Check go mod vendor
+        entry: bash -c 'go mod vendor && git diff --exit-code'
+        language: system
+        pass_filenames: false
+        files: go\.mod$
+
+      - id: prometheus-rules
+        name: Validate Prometheus rules
+        entry: promtool check rules
+        language: system
+        files: (rules|alerts).*\.ya?ml$
+        pass_filenames: true
+
+      - id: no-direct-push
+        name: Block direct pushes to protected branches
+        entry: bash -c 'echo "Direct pushes to protected branches are not allowed. Please create a pull request."; exit 1'
+        language: system
+        stages: [push]
+        always_run: true
+        pass_filenames: false
+
+# Configuration for specific hooks
+ci:
+  autofix_prs: true
+  autofix_commit_msg: |
+    [pre-commit.ci] auto fixes from pre-commit hooks
+
+    for more information, see https://pre-commit.ci
+  autoupdate_branch: ''
+  autoupdate_commit_msg: '[pre-commit.ci] pre-commit autoupdate'
+  autoupdate_schedule: weekly
+  skip: [no-commit-to-branch, go-unit-tests, go-build]
+  submodules: false

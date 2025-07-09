@@ -1,0 +1,19 @@
+apiVersion: v2
+name: apm-stack
+description: A Helm chart for GoFiber APM solution with Prometheus, Grafana, Loki, Jaeger, and Alertmanager
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - apm
+  - monitoring
+  - observability
+  - gofiber
+  - prometheus
+  - grafana
+  - loki
+  - jaeger
+  - alertmanager
+maintainers:
+  - name: APM Team
+    email: apm@example.com

@@ -1,0 +1,61 @@
+apiVersion: networking.istio.io/v1beta1
+kind: Sidecar
+metadata:
+  name: default
+  namespace: apm-system
+spec:
+  # Limit egress traffic to improve performance
+  egress:
+  - hosts:
+    # Allow traffic within the same namespace
+    - "./*"
+    # Allow traffic to istio-system for telemetry
+    - "istio-system/*"
+    # Allow traffic to kube-system for DNS
+    - "kube-system/*"
+    # Add other namespaces as needed
+    # - "another-namespace/*"
+  
+  # Optional: Configure outbound traffic policy
+  outboundTrafficPolicy:
+    mode: ALLOW_ANY  # or REGISTRY_ONLY for stricter control
+  
+  # Optional: Configure workload selector
+  # workloadSelector:
+  #   labels:
+  #     app: my-app
+---
+# Performance optimizations via ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: istio-custom-config
+  namespace: apm-system
+data:
+  # These are example configurations for performance tuning
+  custom_bootstrap.yaml: |
+    # Custom Envoy bootstrap configuration
+    stats_config:
+      stats_matches:
+      - name: "excluded_stats"
+        actions:
+        - name: "reject_stats"
+          action: REJECT
+        match:
+          # Exclude expensive metrics
+          prefix: "osconfig"
+    
+    # Reduce telemetry overhead
+    tracing:
+      http:
+        name: envoy.tracers.zipkin
+        typed_config:
+          "@type": type.googleapis.com/envoy.config.trace.v3.ZipkinConfig
+          collector_cluster: zipkin
+          collector_endpoint: "/api/v2/spans"
+          trace_id_128bit: true
+          shared_span_context: false
+          collector_endpoint_version: HTTP_JSON
+          # Reduce sampling rate for better performance
+          sampling:
+            value: 1.0  # 1% sampling

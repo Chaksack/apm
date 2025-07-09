@@ -1,0 +1,225 @@
+# Jaeger Sampling Configuration
+# This ConfigMap provides adaptive sampling configuration for Jaeger
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jaeger-sampling-config
+  namespace: jaeger
+  labels:
+    app: jaeger
+    component: sampling
+data:
+  sampling-config.json: |
+    {
+      "service_strategies": [
+        {
+          "service": "frontend-service",
+          "type": "probabilistic",
+          "param": 0.2,
+          "max_traces_per_second": 100
+        },
+        {
+          "service": "payment-service",
+          "type": "probabilistic",
+          "param": 1.0,
+          "max_traces_per_second": 500
+        },
+        {
+          "service": "inventory-service",
+          "type": "probabilistic",
+          "param": 0.5,
+          "max_traces_per_second": 200
+        },
+        {
+          "service": "user-service",
+          "type": "probabilistic",
+          "param": 0.1,
+          "max_traces_per_second": 50
+        },
+        {
+          "service": "notification-service",
+          "type": "probabilistic",
+          "param": 0.05,
+          "max_traces_per_second": 25
+        }
+      ],
+      "default_strategy": {
+        "type": "probabilistic",
+        "param": 0.1,
+        "max_traces_per_second": 50
+      }
+    }
+---
+# Adaptive Sampling Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jaeger-adaptive-sampling-config
+  namespace: jaeger
+  labels:
+    app: jaeger
+    component: adaptive-sampling
+data:
+  adaptive-sampling.json: |
+    {
+      "target_samples_per_second": 1000,
+      "max_sampling_probability": 1.0,
+      "min_sampling_probability": 0.001,
+      "min_samples_per_second": 0.1,
+      "leader_lease_refresh_interval": "60s",
+      "follower_lease_refresh_interval": "58s",
+      "aggregation_buckets": 10,
+      "delay": "120s",
+      "initial_sampling_probability": 0.001,
+      "calculation_interval": "60s",
+      "throughput_accuracy": 0.95
+    }
+---
+# Per-Operation Sampling Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jaeger-per-operation-sampling
+  namespace: jaeger
+  labels:
+    app: jaeger
+    component: per-operation-sampling
+data:
+  per-operation-sampling.json: |
+    {
+      "service_strategies": [
+        {
+          "service": "api-gateway",
+          "type": "adaptive",
+          "max_traces_per_second": 1000,
+          "operation_strategies": [
+            {
+              "operation": "GET /health",
+              "type": "probabilistic",
+              "param": 0.001
+            },
+            {
+              "operation": "GET /metrics",
+              "type": "probabilistic",
+              "param": 0.001
+            },
+            {
+              "operation": "POST /api/v1/orders",
+              "type": "probabilistic",
+              "param": 1.0
+            },
+            {
+              "operation": "POST /api/v1/payments",
+              "type": "probabilistic",
+              "param": 1.0
+            },
+            {
+              "operation": "GET /api/v1/products",
+              "type": "probabilistic",
+              "param": 0.1
+            }
+          ]
+        },
+        {
+          "service": "database-service",
+          "type": "adaptive",
+          "max_traces_per_second": 500,
+          "operation_strategies": [
+            {
+              "operation": "SELECT",
+              "type": "probabilistic",
+              "param": 0.01
+            },
+            {
+              "operation": "INSERT",
+              "type": "probabilistic",
+              "param": 0.5
+            },
+            {
+              "operation": "UPDATE",
+              "type": "probabilistic",
+              "param": 0.5
+            },
+            {
+              "operation": "DELETE",
+              "type": "probabilistic",
+              "param": 1.0
+            }
+          ]
+        }
+      ],
+      "default_strategy": {
+        "type": "probabilistic",
+        "param": 0.1,
+        "operation_strategies": [
+          {
+            "operation": "health",
+            "type": "probabilistic",
+            "param": 0.001
+          },
+          {
+            "operation": "readiness",
+            "type": "probabilistic",
+            "param": 0.001
+          }
+        ]
+      }
+    }
+---
+# Rate Limiting Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jaeger-rate-limiting-config
+  namespace: jaeger
+  labels:
+    app: jaeger
+    component: rate-limiting
+data:
+  rate-limiting.json: |
+    {
+      "credits_per_second": 2000,
+      "max_balance": 6000,
+      "service_strategies": [
+        {
+          "service": "high-priority-service",
+          "credits_per_second": 5000,
+          "max_balance": 15000
+        },
+        {
+          "service": "batch-processing-service",
+          "credits_per_second": 500,
+          "max_balance": 1500
+        }
+      ]
+    }
+---
+# Remote Sampling Configuration Deployment Patch
+# This patch adds sampling configuration to the collector deployment
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jaeger-collector-sampling-patch
+  namespace: jaeger
+data:
+  patch.yaml: |
+    spec:
+      template:
+        spec:
+          containers:
+          - name: jaeger-collector
+            env:
+            - name: SAMPLING_CONFIG_TYPE
+              value: "file"
+            volumeMounts:
+            - name: sampling-config
+              mountPath: /etc/jaeger/sampling
+              readOnly: true
+          volumes:
+          - name: sampling-config
+            configMap:
+              name: jaeger-sampling-config
+              items:
+              - key: sampling-config.json
+                path: sampling-config.json

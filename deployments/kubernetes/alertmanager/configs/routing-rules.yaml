@@ -1,0 +1,226 @@
+# AlertManager Routing Rules Configuration
+# This file defines how alerts are routed to different teams and receivers
+# based on labels, severity, time of day, and service ownership
+
+global:
+  # How long to initially wait to send a notification for a group
+  group_wait: 30s
+  # How long to wait before sending a notification about new alerts
+  group_interval: 5m
+  # How long to wait before sending a notification again if it has already been sent
+  repeat_interval: 12h
+
+# The root route on which each incoming alert enters
+route:
+  # Default receiver for alerts that don't match any child routes
+  receiver: 'default-receiver'
+  
+  # Group alerts by these labels
+  group_by: ['alertname', 'cluster', 'service', 'severity']
+  
+  # Child routes for specific routing logic
+  routes:
+    # Critical alerts - always page immediately
+    - match:
+        severity: critical
+      receiver: 'critical-pagerduty'
+      group_wait: 10s
+      group_interval: 10s
+      repeat_interval: 1h
+      continue: true  # Continue matching other routes
+    
+    # Team-based routing
+    - match:
+        team: platform
+      receiver: 'platform-team'
+      routes:
+        # Platform team critical alerts during business hours
+        - match:
+            severity: critical
+          receiver: 'platform-oncall'
+          active_time_intervals:
+            - business-hours
+        # Platform team warnings
+        - match:
+            severity: warning
+          receiver: 'platform-slack'
+          group_wait: 10m
+          repeat_interval: 4h
+    
+    - match:
+        team: backend
+      receiver: 'backend-team'
+      routes:
+        # Backend database alerts
+        - match_re:
+            service: '(mysql|postgres|redis|mongodb)'
+          receiver: 'backend-database-oncall'
+          group_by: ['alertname', 'instance', 'database']
+        # Backend API alerts
+        - match_re:
+            service: 'api-.*'
+          receiver: 'backend-api-team'
+    
+    - match:
+        team: frontend
+      receiver: 'frontend-team'
+      routes:
+        # Frontend performance alerts
+        - match:
+            category: performance
+          receiver: 'frontend-performance'
+          group_wait: 5m
+          repeat_interval: 30m
+    
+    - match:
+        team: security
+      receiver: 'security-team'
+      group_wait: 0s  # Security alerts fire immediately
+      group_interval: 1m
+      repeat_interval: 5m
+    
+    # Service-based routing
+    - match:
+        service: payment
+      receiver: 'payment-service-oncall'
+      routes:
+        # Payment service critical issues
+        - match:
+            severity: critical
+          receiver: 'payment-critical'
+          group_wait: 0s
+          repeat_interval: 15m
+    
+    - match:
+        service: authentication
+      receiver: 'auth-service-team'
+      routes:
+        # Auth service failures during business hours
+        - match:
+            alertname: AuthenticationFailure
+          receiver: 'auth-oncall'
+          active_time_intervals:
+            - business-hours
+        # Auth service failures outside business hours
+        - match:
+            alertname: AuthenticationFailure
+          receiver: 'auth-pagerduty'
+          active_time_intervals:
+            - non-business-hours
+    
+    # Environment-based routing
+    - match:
+        environment: production
+      receiver: 'production-alerts'
+      routes:
+        # Production database issues
+        - match:
+            component: database
+          receiver: 'dba-oncall'
+          group_by: ['alertname', 'instance', 'database']
+        # Production network issues
+        - match:
+            component: network
+          receiver: 'network-oncall'
+    
+    - match:
+        environment: staging
+      receiver: 'staging-alerts'
+      group_wait: 5m
+      repeat_interval: 24h
+    
+    - match:
+        environment: development
+      receiver: 'dev-slack'
+      group_wait: 30m
+      repeat_interval: 7d  # Dev alerts only repeat weekly
+    
+    # Time-based routing for non-critical alerts
+    - match:
+        severity: warning
+      routes:
+        # Warnings during business hours go to Slack
+        - match: {}
+          receiver: 'warning-slack'
+          active_time_intervals:
+            - business-hours
+        # Warnings outside business hours are aggregated
+        - match: {}
+          receiver: 'warning-email-digest'
+          group_wait: 1h
+          group_interval: 6h
+          repeat_interval: 24h
+          active_time_intervals:
+            - non-business-hours
+    
+    # Capacity and scaling alerts
+    - match_re:
+        alertname: '(HighMemoryUsage|HighCPUUsage|DiskSpaceLow)'
+      receiver: 'capacity-planning'
+      group_by: ['alertname', 'instance']
+      group_wait: 10m
+      repeat_interval: 6h
+      routes:
+        # Critical capacity issues
+        - match:
+            severity: critical
+          receiver: 'capacity-oncall'
+          repeat_interval: 30m
+    
+    # Kubernetes-specific routing
+    - match:
+        alertname: KubernetesPodCrashLooping
+      receiver: 'k8s-oncall'
+      group_by: ['namespace', 'pod', 'container']
+      routes:
+        # System namespaces are critical
+        - match_re:
+            namespace: '(kube-system|kube-public|default)'
+          receiver: 'k8s-critical'
+          group_wait: 0s
+    
+    # Default catch-all for unmatched alerts
+    - match: {}
+      receiver: 'default-receiver'
+      group_wait: 30m
+      repeat_interval: 12h
+
+# Time interval definitions
+time_intervals:
+  - name: business-hours
+    time_intervals:
+      # Monday to Friday, 9 AM to 6 PM in your timezone
+      - weekdays: ['monday:friday']
+        times:
+          - start_time: '09:00'
+            end_time: '18:00'
+        # Timezone should be configured based on your location
+        location: 'America/New_York'
+  
+  - name: non-business-hours
+    time_intervals:
+      # Weeknights
+      - weekdays: ['monday:friday']
+        times:
+          - start_time: '00:00'
+            end_time: '09:00'
+          - start_time: '18:00'
+            end_time: '24:00'
+        location: 'America/New_York'
+      # Weekends
+      - weekdays: ['saturday', 'sunday']
+        location: 'America/New_York'
+  
+  - name: maintenance-window
+    time_intervals:
+      # Weekly maintenance window: Sunday 2-4 AM
+      - weekdays: ['sunday']
+        times:
+          - start_time: '02:00'
+            end_time: '04:00'
+        location: 'America/New_York'
+  
+  - name: end-of-month
+    time_intervals:
+      # Last 3 days of each month for billing/reporting alerts
+      - days_of_month: ['28:31', '-3:-1']

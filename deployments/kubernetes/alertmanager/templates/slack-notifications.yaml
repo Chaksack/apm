@@ -1,0 +1,110 @@
+# Slack Notification Templates for AlertManager
+# This file defines message templates, color coding, and interactive elements
+
+templates:
+  # Default Slack message template
+  default: |
+    {{ define "slack.default.title" }}{{ .GroupLabels.alertname }}{{ end }}
+    {{ define "slack.default.text" }}
+    *Alert:* {{ .GroupLabels.alertname }}{{ if .GroupLabels.instance }} - {{ .GroupLabels.instance }}{{ end }}
+    *Severity:* {{ .GroupLabels.severity }}
+    *Summary:* {{ range .Alerts }}{{ .Annotations.summary }}{{ end }}
+    
+    {{ if gt (len .Alerts.Firing) 0 }}
+    *Firing:*
+    {{ range .Alerts.Firing }}
+      • {{ .Labels.instance }}: {{ .Annotations.description }}
+    {{ end }}
+    {{ end }}
+    
+    {{ if gt (len .Alerts.Resolved) 0 }}
+    *Resolved:*
+    {{ range .Alerts.Resolved }}
+      • {{ .Labels.instance }}: {{ .Annotations.description }}
+    {{ end }}
+    {{ end }}
+    {{ end }}
+
+  # Title template with emoji indicators
+  title_with_status: |
+    {{ define "slack.title_with_status" }}
+    {{ if eq .Status "firing" }}🚨{{ else }}✅{{ end }} {{ .GroupLabels.alertname }} - {{ .GroupLabels.env | toUpper }}
+    {{ end }}
+
+  # Detailed message template with metrics
+  detailed: |
+    {{ define "slack.detailed.text" }}
+    {{ range .Alerts }}
+    *Alert:* {{ .Labels.alertname }}
+    *Instance:* {{ .Labels.instance }}
+    *Severity:* {{ .Labels.severity }}
+    *Started:* {{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}
+    {{ if .EndsAt }}*Ended:* {{ .EndsAt.Format "2006-01-02 15:04:05 MST" }}{{ end }}
+    
+    *Description:* {{ .Annotations.description }}
+    *Runbook:* {{ .Annotations.runbook_url }}
+    
+    *Labels:*
+    {{ range .Labels.SortedPairs }}  • {{ .Name }}: {{ .Value }}
+    {{ end }}
+    {{ end }}
+    {{ end }}
+
+# Color coding by severity
+color_map:
+  critical: "#E91E63"  # Red
+  warning: "#FF9800"   # Orange
+  info: "#2196F3"      # Blue
+  resolved: "#4CAF50"  # Green
+
+# Interactive elements
+attachments:
+  # Action buttons for alerts
+  actions:
+    - type: "button"
+      text: "View Dashboard"
+      url: "{{ .Annotations.dashboard_url }}"
+      style: "primary"
+    
+    - type: "button"
+      text: "Runbook"
+      url: "{{ .Annotations.runbook_url }}"
+    
+    - type: "button"
+      text: "Silence Alert"
+      url: "{{ .ExternalURL }}/#/silences/new?filter={alertname%3D\"{{ .GroupLabels.alertname }}\"}"
+      style: "danger"
+
+  # Thread support configuration
+  thread_support:
+    enabled: true
+    update_original: true
+    thread_ts_field: "thread_ts"
+    
+    # Update patterns for threaded messages
+    update_patterns:
+      - status: "firing"
+        update_type: "new_thread"
+      - status: "resolved"
+        update_type: "reply_in_thread"
+
+# Message formatting presets
+message_presets:
+  # Compact format for less critical alerts
+  compact:
+    show_labels: false
+    show_annotations: true
+    max_alerts: 5
+    
+  # Verbose format for critical alerts
+  verbose:
+    show_labels: true
+    show_annotations: true
+    show_metrics: true
+    max_alerts: 10
+
+  # Summary format for grouped alerts
+  summary:
+    group_by: ["alertname", "severity"]
+    show_count: true
+    show_labels: false

@@ -1,0 +1,168 @@
+# Default values for apm-stack.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# Global settings applied to all components
+global:
+  # Namespace where all components will be deployed
+  namespace: apm-system
+  
+  # Common labels applied to all resources
+  labels:
+    app.kubernetes.io/part-of: apm-stack
+    app.kubernetes.io/managed-by: helm
+  
+  # Storage class for persistent volumes
+  storageClass: ""
+
+# Component toggles - enable/disable individual components
+components:
+  prometheus:
+    enabled: true
+  grafana:
+    enabled: true
+  loki:
+    enabled: true
+  jaeger:
+    enabled: true
+  alertmanager:
+    enabled: true
+
+# Prometheus configuration
+prometheus:
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 9090
+  
+  # Resource limits and requests
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+  
+  # Storage configuration
+  storage:
+    size: 10Gi
+    retentionDays: 15
+  
+  # Scrape configurations will be added via ConfigMap
+  scrapeInterval: 30s
+  evaluationInterval: 30s
+
+# Grafana configuration
+grafana:
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 3000
+  
+  # Admin credentials
+  adminUser: admin
+  adminPassword: changeme
+  
+  # Resource limits and requests
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  
+  # Storage for dashboards and plugins
+  storage:
+    size: 1Gi
+
+# Loki configuration for log aggregation
+loki:
+  # Service configuration
+  service:
+    type: ClusterIP
+    httpPort: 3100
+    grpcPort: 9095
+  
+  # Resource limits and requests
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+  
+  # Storage configuration
+  storage:
+    size: 10Gi
+    retentionDays: 7
+
+# Jaeger configuration for distributed tracing
+jaeger:
+  # Service configuration
+  service:
+    type: ClusterIP
+    queryPort: 16686
+    collectorPort: 14268
+    agentPort: 6831
+  
+  # Resource limits and requests
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+  
+  # Storage backend
+  storage:
+    type: memory  # Options: memory, elasticsearch, cassandra
+    size: 5Gi
+
+# Alertmanager configuration
+alertmanager:
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 9093
+  
+  # Resource limits and requests
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+  
+  # Storage for alerts
+  storage:
+    size: 1Gi
+  
+  # Basic routing configuration
+  config:
+    global:
+      resolve_timeout: 5m
+    route:
+      group_by: ['alertname', 'cluster', 'service']
+      group_wait: 10s
+      group_interval: 10s
+      repeat_interval: 12h
+      receiver: 'default'
+    receivers:
+      - name: 'default'
+
+# Image pull secrets if using private registries
+imagePullSecrets: []
+
+# Node selector for pod assignment
+nodeSelector: {}
+
+# Tolerations for pod assignment
+tolerations: []
+
+# Affinity rules for pod assignment
+affinity: {}

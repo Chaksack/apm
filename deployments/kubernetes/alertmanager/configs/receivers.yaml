@@ -1,0 +1,316 @@
+# AlertManager Receivers Configuration
+# Defines notification channels and integrations for different alert types
+
+receivers:
+  # Default receiver for unmatched alerts
+  - name: 'default-receiver'
+    email_configs:
+      - to: 'alerts@company.com'
+        from: 'alertmanager@company.com'
+        smarthost: 'smtp.company.com:587'
+        auth_username: 'alertmanager@company.com'
+        auth_password_file: '/etc/alertmanager/smtp-password'
+        headers:
+          Subject: 'Alert: {{ .GroupLabels.alertname }} - {{ .GroupLabels.severity }}'
+        html: |
+          <h2>Alert Details</h2>
+          <ul>
+          {{ range .Alerts }}
+            <li>
+              <strong>{{ .Labels.alertname }}</strong><br>
+              Status: {{ .Status }}<br>
+              Severity: {{ .Labels.severity }}<br>
+              {{ .Annotations.description }}<br>
+              <a href="{{ .GeneratorURL }}">Source</a>
+            </li>
+          {{ end }}
+          </ul>
+
+  # PagerDuty integrations
+  - name: 'critical-pagerduty'
+    pagerduty_configs:
+      - service_key_file: '/etc/alertmanager/pagerduty-critical-key'
+        description: '{{ .GroupLabels.alertname }}: {{ .GroupLabels.instance }}'
+        severity: 'critical'
+        client: 'AlertManager'
+        client_url: '{{ template "pagerduty.default.clientURL" . }}'
+        details:
+          firing: '{{ template "pagerduty.default.instances" .Alerts.Firing }}'
+          resolved: '{{ template "pagerduty.default.instances" .Alerts.Resolved }}'
+          environment: '{{ .GroupLabels.environment }}'
+          service: '{{ .GroupLabels.service }}'
+
+  - name: 'payment-critical'
+    pagerduty_configs:
+      - service_key_file: '/etc/alertmanager/pagerduty-payment-key'
+        description: 'CRITICAL: Payment Service - {{ .GroupLabels.alertname }}'
+        severity: 'critical'
+        class: 'payment'
+        component: '{{ .GroupLabels.component }}'
+        group: 'payment-services'
+
+  - name: 'auth-pagerduty'
+    pagerduty_configs:
+      - service_key_file: '/etc/alertmanager/pagerduty-auth-key'
+        description: 'Authentication Service Alert - {{ .GroupLabels.alertname }}'
+        severity: '{{ .GroupLabels.severity }}'
+
+  # Webhook receivers for custom integrations
+  - name: 'platform-oncall'
+    webhook_configs:
+      - url: 'https://oncall.company.com/webhook/platform'
+        http_config:
+          bearer_token_file: '/etc/alertmanager/oncall-token'
+        max_alerts: 100
+
+  - name: 'backend-database-oncall'
+    webhook_configs:
+      - url: 'https://oncall.company.com/webhook/database'
+        http_config:
+          bearer_token_file: '/etc/alertmanager/oncall-token'
+      - url: 'https://incident.company.com/api/alerts'
+        http_config:
+          basic_auth:
+            username: 'alertmanager'
+            password_file: '/etc/alertmanager/incident-password'
+
+  - name: 'capacity-oncall'
+    webhook_configs:
+      - url: 'https://capacity.company.com/api/v1/alerts'
+        send_resolved: true
+        http_config:
+          tls_config:
+            cert_file: '/etc/alertmanager/capacity-cert.pem'
+            key_file: '/etc/alertmanager/capacity-key.pem'
+
+  # Slack integrations
+  - name: 'platform-slack'
+    slack_configs:
+      - api_url_file: '/etc/alertmanager/slack-platform-webhook'
+        channel: '#platform-alerts'
+        title: 'Platform Alert'
+        text: '{{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
+        color: '{{ if eq .GroupLabels.severity "critical" }}danger{{ else if eq .GroupLabels.severity "warning" }}warning{{ else }}good{{ end }}'
+        actions:
+          - type: button
+            text: 'Runbook'
+            url: '{{ .GroupLabels.runbook_url }}'
+          - type: button
+            text: 'Dashboard'
+            url: 'https://grafana.company.com/d/{{ .GroupLabels.dashboard_id }}'
+
+  - name: 'backend-slack'
+    slack_configs:
+      - api_url_file: '/etc/alertmanager/slack-backend-webhook'
+        channel: '#backend-alerts'
+        username: 'AlertManager'
+        icon_emoji: ':warning:'
+        title: '{{ .GroupLabels.alertname }}'
+        text: |
+          *Severity:* {{ .GroupLabels.severity }}
+          *Service:* {{ .GroupLabels.service }}
+          *Environment:* {{ .GroupLabels.environment }}
+          {{ range .Alerts }}
+          • {{ .Annotations.description }}
+          {{ end }}
+
+  - name: 'dev-slack'
+    slack_configs:
+      - api_url_file: '/etc/alertmanager/slack-dev-webhook'
+        channel: '#dev-alerts'
+        send_resolved: false  # Don't spam dev channel with resolutions
+
+  - name: 'warning-slack'
+    slack_configs:
+      - api_url_file: '/etc/alertmanager/slack-general-webhook'
+        channel: '#warnings'
+        title_link: 'https://alerts.company.com'
+
+  # Email configurations by team
+  - name: 'platform-team'
+    email_configs:
+      - to: 'platform-team@company.com'
+        from: 'alertmanager@company.com'
+        smarthost: 'smtp.company.com:587'
+        auth_username: 'alertmanager@company.com'
+        auth_password_file: '/etc/alertmanager/smtp-password'
+        headers:
+          Subject: '[Platform] {{ .GroupLabels.alertname }} - {{ .GroupLabels.severity }}'
+          X-Priority: '{{ if eq .GroupLabels.severity "critical" }}1{{ else }}3{{ end }}'
+
+  - name: 'backend-team'
+    email_configs:
+      - to: 'backend-oncall@company.com,backend-team@company.com'
+        from: 'alertmanager@company.com'
+        smarthost: 'smtp.company.com:587'
+        auth_username: 'alertmanager@company.com'
+        auth_password_file: '/etc/alertmanager/smtp-password'
+
+  - name: 'frontend-team'
+    email_configs:
+      - to: 'frontend-team@company.com'
+        from: 'alertmanager@company.com'
+        smarthost: 'smtp.company.com:587'
+        auth_username: 'alertmanager@company.com'
+        auth_password_file: '/etc/alertmanager/smtp-password'
+        send_resolved: true
+
+  - name: 'security-team'
+    email_configs:
+      - to: 'security-team@company.com,security-oncall@company.com'
+        from: 'security-alertmanager@company.com'
+        smarthost: 'smtp.company.com:587'
+        auth_username: 'alertmanager@company.com'
+        auth_password_file: '/etc/alertmanager/smtp-password'
+        headers:
+          Subject: '[SECURITY] {{ .GroupLabels.alertname }}'
+          X-Priority: '1'
+    webhook_configs:
+      - url: 'https://siem.company.com/api/alerts'
+        http_config:
+          bearer_token_file: '/etc/alertmanager/siem-token'
+
+  # Specialized receivers
+  - name: 'dba-oncall'
+    email_configs:
+      - to: 'dba-oncall@company.com'
+    pagerduty_configs:
+      - service_key_file: '/etc/alertmanager/pagerduty-dba-key'
+        description: 'Database Alert: {{ .GroupLabels.alertname }}'
+    webhook_configs:
+      - url: 'https://dbmonitor.company.com/api/alerts'
+
+  - name: 'network-oncall'
+    email_configs:
+      - to: 'network-team@company.com'
+    webhook_configs:
+      - url: 'https://netops.company.com/api/v2/alerts'
+        http_config:
+          bearer_token_file: '/etc/alertmanager/netops-token'
+
+  - name: 'k8s-oncall'
+    webhook_configs:
+      - url: 'https://k8s-oncall.company.com/webhook'
+    slack_configs:
+      - api_url_file: '/etc/alertmanager/slack-k8s-webhook'
+        channel: '#kubernetes-alerts'
+
+  - name: 'k8s-critical'
+    pagerduty_configs:
+      - service_key_file: '/etc/alertmanager/pagerduty-k8s-key'
+        description: 'Kubernetes Critical: {{ .GroupLabels.alertname }}'
+        severity: 'critical'
+
+  # Service-specific receivers
+  - name: 'payment-service-oncall'
+    email_configs:
+      - to: 'payment-team@company.com'
+    pagerduty_configs:
+      - service_key_file: '/etc/alertmanager/pagerduty-payment-key'
+    webhook_configs:
+      - url: 'https://payment.company.com/api/alerts'
+        http_config:
+          basic_auth:
+            username: 'alertmanager'
+            password_file: '/etc/alertmanager/payment-webhook-password'
+
+  - name: 'auth-service-team'
+    email_configs:
+      - to: 'auth-team@company.com'
+    slack_configs:
+      - api_url_file: '/etc/alertmanager/slack-auth-webhook'
+        channel: '#auth-alerts'
+
+  - name: 'auth-oncall'
+    webhook_configs:
+      - url: 'https://auth-oncall.company.com/webhook'
+        max_alerts: 50
+
+  # Environment-specific receivers
+  - name: 'production-alerts'
+    email_configs:
+      - to: 'production-alerts@company.com'
+    webhook_configs:
+      - url: 'https://monitoring.company.com/api/production/alerts'
+
+  - name: 'staging-alerts'
+    email_configs:
+      - to: 'staging-alerts@company.com'
+        send_resolved: false
+
+  # Aggregated receivers
+  - name: 'warning-email-digest'
+    email_configs:
+      - to: 'ops-digest@company.com'
+        from: 'alertmanager@company.com'
+        smarthost: 'smtp.company.com:587'
+        auth_username: 'alertmanager@company.com'
+        auth_password_file: '/etc/alertmanager/smtp-password'
+        headers:
+          Subject: 'Alert Digest - {{ .Alerts | len }} warnings'
+        html: |
+          <h2>Warning Alert Digest</h2>
+          <p>Total alerts: {{ .Alerts | len }}</p>
+          <table border="1">
+            <tr>
+              <th>Alert</th>
+              <th>Service</th>
+              <th>Started</th>
+              <th>Description</th>
+            </tr>
+          {{ range .Alerts }}
+            <tr>
+              <td>{{ .Labels.alertname }}</td>
+              <td>{{ .Labels.service }}</td>
+              <td>{{ .StartsAt.Format "2006-01-02 15:04:05" }}</td>
+              <td>{{ .Annotations.description }}</td>
+            </tr>
+          {{ end }}
+          </table>
+
+  # Performance monitoring receiver
+  - name: 'frontend-performance'
+    webhook_configs:
+      - url: 'https://perf.company.com/api/alerts'
+        send_resolved: true
+    slack_configs:
+      - api_url_file: '/etc/alertmanager/slack-performance-webhook'
+        channel: '#performance-alerts'
+
+  # Capacity planning receiver
+  - name: 'capacity-planning'
+    email_configs:
+      - to: 'capacity-planning@company.com'
+    webhook_configs:
+      - url: 'https://capacity.company.com/api/alerts'
+        http_config:
+          bearer_token_file: '/etc/alertmanager/capacity-token'
+
+  # Custom webhook receiver for incident management
+  - name: 'incident-management'
+    webhook_configs:
+      - url: 'https://incident.company.com/api/v1/alerts'
+        send_resolved: true
+        http_config:
+          bearer_token_file: '/etc/alertmanager/incident-token'
+        max_alerts: 0  # Send all alerts, no limit
+
+# Global receiver configuration
+global_config:
+  # SMTP configuration
+  smtp_from: 'alertmanager@company.com'
+  smtp_smarthost: 'smtp.company.com:587'
+  smtp_auth_username: 'alertmanager@company.com'
+  smtp_auth_password_file: '/etc/alertmanager/smtp-password'
+  smtp_require_tls: true
+  
+  # Slack configuration  
+  slack_api_url_file: '/etc/alertmanager/slack-default-webhook'
+  
+  # PagerDuty configuration
+  pagerduty_url: 'https://events.pagerduty.com/v2/enqueue'
+  
+  # HTTP client configuration
+  http_config:
+    proxy_url: 'http://proxy.company.com:8080'
+    no_proxy: 'localhost,127.0.0.1,internal.company.com'

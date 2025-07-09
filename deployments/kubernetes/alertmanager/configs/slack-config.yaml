@@ -1,0 +1,143 @@
+# Slack Configuration for AlertManager
+# Webhook configuration, channel routing, and message formatting
+
+global:
+  # Global Slack settings
+  slack_api_url: "${SLACK_WEBHOOK_URL}"  # Set via environment variable
+  http_config:
+    proxy_url: "${HTTP_PROXY_URL}"      # Optional proxy configuration
+
+# Route configuration for different teams
+route:
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 12h
+  receiver: 'default-slack'
+  
+  routes:
+    # Critical alerts go to ops-critical channel
+    - match:
+        severity: critical
+      receiver: 'slack-critical'
+      continue: true
+      
+    # Database alerts go to database team
+    - match:
+        service: database
+      receiver: 'slack-database-team'
+      
+    # Application alerts go to app team
+    - match:
+        service: application
+      receiver: 'slack-app-team'
+      
+    # Infrastructure alerts
+    - match:
+        team: infrastructure
+      receiver: 'slack-infra-team'
+      
+    # Security alerts
+    - match_re:
+        alertname: '.*(Security|Intrusion|Unauthorized).*'
+      receiver: 'slack-security-team'
+
+# Receiver configurations
+receivers:
+  # Default Slack receiver
+  - name: 'default-slack'
+    slack_configs:
+      - api_url: "${SLACK_WEBHOOK_URL}"
+        channel: '#alerts'
+        title: '{{ template "slack.title_with_status" . }}'
+        text: '{{ template "slack.default.text" . }}'
+        color: '{{ if eq .Status "firing" }}{{ if eq .GroupLabels.severity "critical" }}danger{{ else }}warning{{ end }}{{ else }}good{{ end }}'
+        send_resolved: true
+        
+  # Critical alerts receiver
+  - name: 'slack-critical'
+    slack_configs:
+      - api_url: "${SLACK_CRITICAL_WEBHOOK_URL}"
+        channel: '#ops-critical'
+        title: '🚨 CRITICAL: {{ .GroupLabels.alertname }}'
+        text: '{{ template "slack.detailed.text" . }}'
+        color: 'danger'
+        send_resolved: true
+        actions:
+          - type: button
+            text: 'View Runbook'
+            url: '{{ .Annotations.runbook_url }}'
+          - type: button
+            text: 'Acknowledge'
+            url: '{{ .ExternalURL }}/#/alerts'
+            
+  # Database team receiver
+  - name: 'slack-database-team'
+    slack_configs:
+      - api_url: "${SLACK_DB_WEBHOOK_URL}"
+        channel: '#database-alerts'
+        username: 'AlertManager-DB'
+        icon_emoji: ':database:'
+        title: '{{ .GroupLabels.alertname }} - {{ .GroupLabels.instance }}'
+        text: '{{ template "slack.default.text" . }}'
+        send_resolved: true
+        
+  # Application team receiver
+  - name: 'slack-app-team'
+    slack_configs:
+      - api_url: "${SLACK_APP_WEBHOOK_URL}"
+        channel: '#app-alerts'
+        username: 'AlertManager-App'
+        icon_emoji: ':computer:'
+        title: '{{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
+        send_resolved: true
+        
+  # Infrastructure team receiver
+  - name: 'slack-infra-team'
+    slack_configs:
+      - api_url: "${SLACK_INFRA_WEBHOOK_URL}"
+        channel: '#infra-alerts'
+        username: 'AlertManager-Infra'
+        icon_emoji: ':gear:'
+        title: 'Infrastructure Alert: {{ .GroupLabels.alertname }}'
+        text: '{{ template "slack.default.text" . }}'
+        color: '{{ if eq .GroupLabels.severity "critical" }}danger{{ else }}warning{{ end }}'
+        send_resolved: true
+        
+  # Security team receiver
+  - name: 'slack-security-team'
+    slack_configs:
+      - api_url: "${SLACK_SECURITY_WEBHOOK_URL}"
+        channel: '#security-alerts'
+        username: 'AlertManager-Security'
+        icon_emoji: ':shield:'
+        title: '🔒 Security Alert: {{ .GroupLabels.alertname }}'
+        text: '{{ template "slack.detailed.text" . }}'
+        color: 'danger'
+        send_resolved: false  # Security team handles resolution manually
+
+# Message formatting options
+slack_message_config:
+  # Default formatting
+  default_format:
+    link_names: true
+    short_fields: false
+    footer: 'AlertManager'
+    footer_icon: 'https://prometheus.io/assets/favicons/android-chrome-192x192.png'
+    
+  # Markdown support
+  markdown_in:
+    - text
+    - pretext
+    - fields
+    
+  # Thread configuration
+  thread_config:
+    use_thread_ts: true
+    broadcast_resolved: false
+    
+  # Rate limiting
+  rate_limit:
+    max_messages_per_channel: 20
+    time_window: 60s

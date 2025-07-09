@@ -1,0 +1,23 @@
+{
+  "name": "grafana-validation",
+  "version": "1.0.0",
+  "description": "Grafana dashboard and data source validation tests",
+  "main": "grafana-validation.js",
+  "scripts": {
+    "test": "node grafana-validation.js",
+    "validate": "node grafana-validation.js"
+  },
+  "dependencies": {
+    "axios": "^1.4.0"
+  },
+  "devDependencies": {},
+  "keywords": [
+    "grafana",
+    "validation",
+    "metrics",
+    "apm",
+    "testing"
+  ],
+  "author": "",
+  "license": "MIT"
+}

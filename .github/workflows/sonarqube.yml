@@ -1,0 +1,160 @@
+name: SonarQube Analysis
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+      - develop
+
+jobs:
+  sonarqube:
+    name: SonarQube Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Shallow clones should be disabled for better relevancy of analysis
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.23'
+    
+    - name: Cache Go modules
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+    
+    - name: Install dependencies
+      run: go mod download
+    
+    - name: Install golangci-lint
+      run: |
+        curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.54.2
+        echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+    
+    - name: Run tests with coverage
+      run: |
+        go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+        go tool cover -html=coverage.out -o coverage.html
+    
+    - name: Run golangci-lint
+      run: |
+        golangci-lint run --out-format=junit-xml > golangci-lint-report.xml || true
+        golangci-lint run --out-format=checkstyle > golangci-lint-checkstyle.xml || true
+    
+    - name: Run go vet
+      run: |
+        go vet ./... 2>&1 | tee govet-report.out || true
+    
+    - name: Run golint
+      run: |
+        go install golang.org/x/lint/golint@latest
+        golint ./... > golint-report.out || true
+    
+    - name: Generate test report
+      run: |
+        go test -v -json ./... > test-report.json || true
+    
+    - name: SonarQube Scan
+      uses: sonarqube-quality-gate-action@master
+      env:
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+      with:
+        args: >
+          -Dsonar.projectKey=apm-solution
+          -Dsonar.projectName="APM Solution"
+          -Dsonar.projectVersion=${{ github.sha }}
+          -Dsonar.sources=.
+          -Dsonar.exclusions=**/*_test.go,**/vendor/**,**/testdata/**,**/*.pb.go,**/mock_*.go,**/generated/**,**/.git/**,**/dist/**,**/coverage.*,**/*.out
+          -Dsonar.tests=.
+          -Dsonar.test.inclusions=**/*_test.go
+          -Dsonar.test.exclusions=**/vendor/**
+          -Dsonar.go.coverage.reportPaths=coverage.out
+          -Dsonar.go.golangci-lint.reportPaths=golangci-lint-report.xml
+          -Dsonar.go.golint.reportPaths=golint-report.out
+          -Dsonar.go.govet.reportPaths=govet-report.out
+          -Dsonar.go.test.reportPaths=test-report.json
+          -Dsonar.sourceEncoding=UTF-8
+          -Dsonar.scm.provider=git
+          -Dsonar.qualitygate.wait=true
+          -Dsonar.pullrequest.key=${{ github.event.number }}
+          -Dsonar.pullrequest.branch=${{ github.head_ref }}
+          -Dsonar.pullrequest.base=${{ github.base_ref }}
+    
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.out
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+    
+    - name: Archive code coverage results
+      uses: actions/upload-artifact@v3
+      with:
+        name: code-coverage-report
+        path: |
+          coverage.out
+          coverage.html
+          golangci-lint-report.xml
+          golangci-lint-checkstyle.xml
+          govet-report.out
+          golint-report.out
+          test-report.json
+    
+    - name: Quality Gate Status
+      run: |
+        if [ -f .sonarqube/report-task.txt ]; then
+          echo "SonarQube analysis completed successfully"
+          cat .sonarqube/report-task.txt
+        else
+          echo "SonarQube analysis failed or report not found"
+          exit 1
+        fi
+
+  dependency-check:
+    name: Dependency Security Check
+    runs-on: ubuntu-latest
+    needs: sonarqube
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.23'
+    
+    - name: Install govulncheck
+      run: go install golang.org/x/vuln/cmd/govulncheck@latest
+    
+    - name: Run security scan
+      run: |
+        govulncheck ./... || true
+    
+    - name: Run gosec
+      run: |
+        go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
+        gosec -fmt sonarqube -out gosec-report.json ./... || true
+    
+    - name: Upload security reports
+      uses: actions/upload-artifact@v3
+      with:
+        name: security-reports
+        path: |
+          gosec-report.json

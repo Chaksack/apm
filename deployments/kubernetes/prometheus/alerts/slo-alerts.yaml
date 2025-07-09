@@ -1,0 +1,199 @@
+groups:
+  - name: slo_alerts
+    interval: 30s
+    rules:
+      # Availability SLO Alerts - Multi-window multi-burn-rate
+      - alert: HighErrorRateBudgetBurn
+        expr: |
+          (
+            # 5m window, 14.4x burn rate (1 hour budget burn)
+            (1 - (sum(rate(http_requests_total{status!~"5.."}[5m])) / sum(rate(http_requests_total[5m])))) > 0.001 * 14.4
+            AND
+            # 1h window, 14.4x burn rate (1 hour budget burn)
+            (1 - (sum(rate(http_requests_total{status!~"5.."}[1h])) / sum(rate(http_requests_total[1h])))) > 0.001 * 14.4
+          )
+          OR
+          (
+            # 30m window, 6x burn rate (6 hour budget burn)
+            (1 - (sum(rate(http_requests_total{status!~"5.."}[30m])) / sum(rate(http_requests_total[30m])))) > 0.001 * 6
+            AND
+            # 6h window, 6x burn rate (6 hour budget burn)
+            (1 - (sum(rate(http_requests_total{status!~"5.."}[6h])) / sum(rate(http_requests_total[6h])))) > 0.001 * 6
+          )
+        for: 2m
+        labels:
+          severity: critical
+          slo: availability
+          sli: error_rate
+        annotations:
+          summary: "High error rate burning through error budget quickly"
+          description: "Error rate is {{ $value | humanizePercentage }} which is burning through the error budget at a high rate. Current availability SLO target is 99.9%."
+          runbook_url: "https://wiki.example.com/runbooks/slo-availability-burn"
+
+      - alert: ModerateErrorRateBudgetBurn
+        expr: |
+          (
+            # 2h window, 3x burn rate (1 day budget burn)
+            (1 - (sum(rate(http_requests_total{status!~"5.."}[2h])) / sum(rate(http_requests_total[2h])))) > 0.001 * 3
+            AND
+            # 1d window, 3x burn rate (1 day budget burn)
+            (1 - (sum(rate(http_requests_total{status!~"5.."}[1d])) / sum(rate(http_requests_total[1d])))) > 0.001 * 3
+          )
+          OR
+          (
+            # 6h window, 1x burn rate (3 day budget burn)
+            (1 - (sum(rate(http_requests_total{status!~"5.."}[6h])) / sum(rate(http_requests_total[6h])))) > 0.001 * 1
+            AND
+            # 3d window, 1x burn rate (3 day budget burn)
+            (1 - (sum(rate(http_requests_total{status!~"5.."}[3d])) / sum(rate(http_requests_total[3d])))) > 0.001 * 1
+          )
+        for: 15m
+        labels:
+          severity: warning
+          slo: availability
+          sli: error_rate
+        annotations:
+          summary: "Moderate error rate burning through error budget"
+          description: "Error rate is {{ $value | humanizePercentage }} which is steadily burning through the error budget. Current availability SLO target is 99.9%."
+          runbook_url: "https://wiki.example.com/runbooks/slo-availability-burn"
+
+      # Availability SLO Violations
+      - alert: AvailabilitySLOViolation999
+        expr: |
+          (sum(rate(http_requests_total{status!~"5.."}[5m])) / sum(rate(http_requests_total[5m]))) < 0.999
+        for: 5m
+        labels:
+          severity: critical
+          slo: availability_99_9
+        annotations:
+          summary: "Service availability below 99.9% SLO"
+          description: "Service availability is {{ $value | humanizePercentage }}, violating the 99.9% SLO for {{ $labels.service }} in {{ $labels.namespace }}."
+          runbook_url: "https://wiki.example.com/runbooks/slo-availability"
+
+      - alert: AvailabilitySLOViolation995
+        expr: |
+          (sum(rate(http_requests_total{status!~"5.."}[5m])) / sum(rate(http_requests_total[5m]))) < 0.995
+        for: 5m
+        labels:
+          severity: warning
+          slo: availability_99_5
+        annotations:
+          summary: "Service availability below 99.5% SLO"
+          description: "Service availability is {{ $value | humanizePercentage }}, violating the 99.5% SLO for {{ $labels.service }} in {{ $labels.namespace }}."
+          runbook_url: "https://wiki.example.com/runbooks/slo-availability"
+
+      - alert: AvailabilitySLOViolation99
+        expr: |
+          (sum(rate(http_requests_total{status!~"5.."}[5m])) / sum(rate(http_requests_total[5m]))) < 0.99
+        for: 10m
+        labels:
+          severity: info
+          slo: availability_99
+        annotations:
+          summary: "Service availability below 99% SLO"
+          description: "Service availability is {{ $value | humanizePercentage }}, violating the 99% SLO for {{ $labels.service }} in {{ $labels.namespace }}."
+          runbook_url: "https://wiki.example.com/runbooks/slo-availability"
+
+      # Latency SLO Alerts - Multi-window multi-burn-rate
+      - alert: HighLatencyBudgetBurn
+        expr: |
+          (
+            # 5m window, 14.4x burn rate for p95 < 500ms
+            histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 0.5 * 14.4
+            AND
+            # 1h window, 14.4x burn rate
+            histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[1h])) by (le)) > 0.5 * 14.4
+          )
+          OR
+          (
+            # 30m window, 6x burn rate for p99 < 1s
+            histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[30m])) by (le)) > 1 * 6
+            AND
+            # 6h window, 6x burn rate
+            histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[6h])) by (le)) > 1 * 6
+          )
+        for: 2m
+        labels:
+          severity: critical
+          slo: latency
+          sli: response_time
+        annotations:
+          summary: "High latency burning through latency budget quickly"
+          description: "Request latency is significantly elevated, burning through the latency budget at a high rate. p95: {{ $value }}s"
+          runbook_url: "https://wiki.example.com/runbooks/slo-latency-burn"
+
+      # Latency SLO Violations
+      - alert: LatencySLOViolationP95
+        expr: |
+          histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          slo: latency_p95_500ms
+        annotations:
+          summary: "P95 latency exceeds 500ms SLO"
+          description: "95th percentile latency is {{ $value }}s, exceeding the 500ms SLO for {{ $labels.service }} in {{ $labels.namespace }}."
+          runbook_url: "https://wiki.example.com/runbooks/slo-latency"
+
+      - alert: LatencySLOViolationP99
+        expr: |
+          histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 1
+        for: 5m
+        labels:
+          severity: critical
+          slo: latency_p99_1s
+        annotations:
+          summary: "P99 latency exceeds 1s SLO"
+          description: "99th percentile latency is {{ $value }}s, exceeding the 1s SLO for {{ $labels.service }} in {{ $labels.namespace }}."
+          runbook_url: "https://wiki.example.com/runbooks/slo-latency"
+
+      # Error Budget Exhaustion Alerts
+      - alert: ErrorBudgetExhausted
+        expr: |
+          (
+            1 - (
+              sum_over_time(sli:service_availability:ratio_5m[30d]) / 
+              count_over_time(sli:service_availability:ratio_5m[30d])
+            )
+          ) > 0.001  # More than 0.1% errors (99.9% SLO)
+        for: 5m
+        labels:
+          severity: critical
+          slo: error_budget
+        annotations:
+          summary: "Monthly error budget exhausted"
+          description: "The service has exhausted its monthly error budget. Error rate over the last 30 days: {{ $value | humanizePercentage }}."
+          runbook_url: "https://wiki.example.com/runbooks/error-budget-exhausted"
+
+      - alert: ErrorBudgetNearlyExhausted
+        expr: |
+          (
+            1 - (
+              sum_over_time(sli:service_availability:ratio_5m[30d]) / 
+              count_over_time(sli:service_availability:ratio_5m[30d])
+            )
+          ) > 0.0008  # 80% of error budget consumed
+        for: 15m
+        labels:
+          severity: warning
+          slo: error_budget
+        annotations:
+          summary: "Monthly error budget nearly exhausted"
+          description: "The service has consumed 80% of its monthly error budget. Error rate over the last 30 days: {{ $value | humanizePercentage }}."
+          runbook_url: "https://wiki.example.com/runbooks/error-budget-warning"
+
+      # Latency Budget Alerts
+      - alert: LatencyBudgetExhausted
+        expr: |
+          (
+            sum_over_time(sli:service_latency_p95:seconds[30d]) / 
+            count_over_time(sli:service_latency_p95:seconds[30d])
+          ) > 0.5  # P95 > 500ms
+        for: 5m
+        labels:
+          severity: warning
+          slo: latency_budget
+        annotations:
+          summary: "Monthly latency budget exhausted"
+          description: "The service P95 latency has exceeded the monthly budget. Average P95 over 30 days: {{ $value }}s."
+          runbook_url: "https://wiki.example.com/runbooks/latency-budget-exhausted"

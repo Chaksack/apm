@@ -1,0 +1,521 @@
+# Alertmanager Configuration Test Suite
+# Tests configuration validation, routing tree, silence functionality, and receivers
+
+# Test configuration structure
+test_config:
+  # Global configuration tests
+  global_tests:
+    smtp_smarthost: 'localhost:587'
+    smtp_from: 'alerts@example.com'
+    smtp_auth_username: 'alerts@example.com'
+    smtp_auth_password: 'test-password'
+    smtp_require_tls: true
+    slack_api_url: 'https://slack.com/api/chat.postMessage'
+    resolve_timeout: '5m'
+    http_config:
+      proxy_url: 'http://proxy.example.com:8080'
+
+  # Template tests
+  template_tests:
+    - name: 'email.html'
+      content: |
+        <html>
+        <body>
+          <h2>{{ .GroupLabels.alertname }}</h2>
+          <p>{{ .CommonAnnotations.summary }}</p>
+          <ul>
+          {{ range .Alerts }}
+            <li>{{ .Labels.instance }}: {{ .Annotations.description }}</li>
+          {{ end }}
+          </ul>
+        </body>
+        </html>
+    
+    - name: 'slack.title'
+      content: |
+        [{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .GroupLabels.alertname }}
+    
+    - name: 'email.subject'
+      content: |
+        [{{ .Status | toUpper }}] {{ .GroupLabels.alertname }} ({{ .Alerts | len }})
+
+# Routing tree tests
+routing_tests:
+  # Basic routing configuration
+  basic_routing:
+    receiver: 'default-receiver'
+    group_by: ['alertname', 'severity']
+    group_wait: 10s
+    group_interval: 10s
+    repeat_interval: 1h
+    routes:
+      - match:
+          severity: 'critical'
+        receiver: 'critical-alerts'
+        group_wait: 5s
+        repeat_interval: 5m
+      
+      - match:
+          severity: 'warning'
+        receiver: 'warning-alerts'
+        group_wait: 30s
+        repeat_interval: 30m
+      
+      - match:
+          team: 'platform'
+        receiver: 'platform-team'
+        routes:
+          - match:
+              severity: 'critical'
+            receiver: 'platform-critical'
+            group_wait: 2s
+  
+  # Complex routing with multiple matchers
+  complex_routing:
+    receiver: 'default-receiver'
+    routes:
+      - match_re:
+          service: '(web|api).*'
+        match:
+          severity: 'critical'
+        receiver: 'web-critical'
+        continue: true
+      
+      - match:
+          alertname: 'NodeDown'
+        receiver: 'infrastructure-emergency'
+        group_wait: 1s
+        repeat_interval: 1m
+      
+      - match:
+          team: 'data'
+        receiver: 'data-team'
+        routes:
+          - match:
+              severity: 'critical'
+            receiver: 'data-critical'
+          - match:
+              severity: 'warning'
+            receiver: 'data-warning'
+            group_interval: 5m
+
+  # Route continue behavior tests
+  continue_tests:
+    receiver: 'default-receiver'
+    routes:
+      - match:
+          severity: 'critical'
+        receiver: 'critical-alerts'
+        continue: true
+      
+      - match:
+          team: 'platform'
+        receiver: 'platform-team'
+        continue: true
+      
+      - match:
+          alertname: 'DatabaseDown'
+        receiver: 'database-emergency'
+
+# Receiver tests
+receiver_tests:
+  # Email receiver configurations
+  email_receivers:
+    - name: 'critical-alerts'
+      email_configs:
+        - to: 'oncall@example.com'
+          from: 'alerts@example.com'
+          subject: '{{ template "email.subject" . }}'
+          html: '{{ template "email.html" . }}'
+          headers:
+            X-Priority: '1'
+            X-Mailer: 'Alertmanager'
+    
+    - name: 'warning-alerts'
+      email_configs:
+        - to: 'team@example.com'
+          from: 'alerts@example.com'
+          subject: '{{ template "email.subject" . }}'
+          html: '{{ template "email.html" . }}'
+    
+    - name: 'platform-team'
+      email_configs:
+        - to: 'platform@example.com'
+          from: 'alerts@example.com'
+          subject: '[PLATFORM] {{ template "email.subject" . }}'
+          html: '{{ template "email.html" . }}'
+
+  # Slack receiver configurations
+  slack_receivers:
+    - name: 'slack-critical'
+      slack_configs:
+        - api_url: 'https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX'
+          channel: '#alerts-critical'
+          username: 'AlertManager'
+          color: 'danger'
+          title: '{{ template "slack.title" . }}'
+          text: '{{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
+          actions:
+            - type: 'button'
+              text: 'View Dashboard'
+              url: '{{ .CommonAnnotations.dashboard_url }}'
+    
+    - name: 'slack-general'
+      slack_configs:
+        - api_url: 'https://hooks.slack.com/services/T00000000/B00000000/YYYYYYYYYYYYYYYYYYYYYYYY'
+          channel: '#alerts'
+          username: 'AlertManager'
+          color: 'warning'
+          title: '{{ template "slack.title" . }}'
+          text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+
+  # PagerDuty receiver configurations
+  pagerduty_receivers:
+    - name: 'pagerduty-critical'
+      pagerduty_configs:
+        - service_key: 'your-pagerduty-service-key'
+          description: '{{ template "pagerduty.description" . }}'
+          client: 'Alertmanager'
+          client_url: '{{ template "pagerduty.client_url" . }}'
+          details:
+            firing: '{{ template "pagerduty.details.firing" . }}'
+            resolved: '{{ template "pagerduty.details.resolved" . }}'
+
+  # Webhook receiver configurations
+  webhook_receivers:
+    - name: 'webhook-alerts'
+      webhook_configs:
+        - url: 'https://api.example.com/webhook/alerts'
+          http_config:
+            bearer_token: 'your-bearer-token'
+          send_resolved: true
+
+  # Multi-channel receiver
+  multi_channel_receivers:
+    - name: 'multi-critical'
+      email_configs:
+        - to: 'oncall@example.com'
+          subject: 'CRITICAL: {{ template "email.subject" . }}'
+          html: '{{ template "email.html" . }}'
+      slack_configs:
+        - api_url: 'https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX'
+          channel: '#alerts-critical'
+          title: 'CRITICAL: {{ template "slack.title" . }}'
+          text: '{{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
+      pagerduty_configs:
+        - service_key: 'critical-service-key'
+          description: 'CRITICAL: {{ template "pagerduty.description" . }}'
+
+# Inhibition rule tests
+inhibition_tests:
+  # Node down inhibition
+  - source_match:
+      alertname: 'NodeDown'
+    target_match:
+      severity: 'warning'
+    target_match_re:
+      instance: '.*'
+    equal: ['instance']
+  
+  # Critical severity inhibition
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['service']
+  
+  # Service down inhibition
+  - source_match:
+      alertname: 'ServiceDown'
+    target_match_re:
+      alertname: '(High.*|Low.*)'
+    equal: ['service', 'instance']
+
+# Silence functionality tests
+silence_tests:
+  # Basic silence configuration
+  basic_silence:
+    matchers:
+      - name: 'alertname'
+        value: 'HighCPUUsage'
+      - name: 'instance'
+        value: 'web-01'
+    startsAt: '2023-01-01T00:00:00Z'
+    endsAt: '2023-01-01T01:00:00Z'
+    createdBy: 'admin@example.com'
+    comment: 'Maintenance window for web-01'
+  
+  # Regex silence configuration
+  regex_silence:
+    matchers:
+      - name: 'alertname'
+        value: 'High.*Usage'
+        isRegex: true
+      - name: 'severity'
+        value: 'warning'
+    startsAt: '2023-01-01T00:00:00Z'
+    endsAt: '2023-01-01T02:00:00Z'
+    createdBy: 'oncall@example.com'
+    comment: 'Silencing warning alerts during deployment'
+  
+  # Multiple matcher silence
+  multi_matcher_silence:
+    matchers:
+      - name: 'team'
+        value: 'platform'
+      - name: 'severity'
+        value: 'critical'
+      - name: 'service'
+        value: 'web-server'
+    startsAt: '2023-01-01T00:00:00Z'
+    endsAt: '2023-01-01T04:00:00Z'
+    createdBy: 'platform-team@example.com'
+    comment: 'Platform team maintenance'
+
+# Time interval tests
+time_interval_tests:
+  # Business hours only
+  business_hours:
+    - times:
+        - start_time: '09:00'
+          end_time: '17:00'
+      weekdays: ['monday:friday']
+      months: ['january:december']
+  
+  # Weekend maintenance window
+  weekend_maintenance:
+    - times:
+        - start_time: '02:00'
+          end_time: '06:00'
+      weekdays: ['saturday', 'sunday']
+  
+  # Holiday schedule
+  holidays:
+    - times:
+        - start_time: '00:00'
+          end_time: '23:59'
+      days_of_month: ['25']
+      months: ['december']
+
+# Validation test cases
+validation_tests:
+  # Valid configurations
+  valid_configs:
+    - description: 'Minimal valid configuration'
+      config:
+        global:
+          smtp_smarthost: 'localhost:587'
+        route:
+          receiver: 'default'
+        receivers:
+          - name: 'default'
+            email_configs:
+              - to: 'admin@example.com'
+      expected: 'valid'
+    
+    - description: 'Complex valid configuration'
+      config:
+        global:
+          smtp_smarthost: 'localhost:587'
+          resolve_timeout: '5m'
+        route:
+          receiver: 'default'
+          group_by: ['alertname']
+          routes:
+            - match:
+                severity: 'critical'
+              receiver: 'critical'
+        receivers:
+          - name: 'default'
+            email_configs:
+              - to: 'admin@example.com'
+          - name: 'critical'
+            email_configs:
+              - to: 'oncall@example.com'
+      expected: 'valid'
+  
+  # Invalid configurations
+  invalid_configs:
+    - description: 'Missing receivers section'
+      config:
+        route:
+          receiver: 'default'
+      expected: 'invalid'
+      error: 'missing receivers'
+    
+    - description: 'Route references non-existent receiver'
+      config:
+        route:
+          receiver: 'non-existent'
+        receivers:
+          - name: 'default'
+            email_configs:
+              - to: 'admin@example.com'
+      expected: 'invalid'
+      error: 'receiver not found'
+    
+    - description: 'Invalid email configuration'
+      config:
+        route:
+          receiver: 'default'
+        receivers:
+          - name: 'default'
+            email_configs:
+              - subject: 'Missing to field'
+      expected: 'invalid'
+      error: 'missing to field'
+
+# Test scenarios
+test_scenarios:
+  # Critical alert routing
+  critical_alert_scenario:
+    input_alert:
+      labels:
+        alertname: 'ServiceDown'
+        severity: 'critical'
+        service: 'web-server'
+        instance: 'web-01'
+        team: 'platform'
+      annotations:
+        summary: 'Web server is down'
+        description: 'Web server web-01 is not responding'
+    expected_route: 'platform-critical'
+    expected_receivers: ['platform-critical']
+    expected_grouping: ['alertname', 'severity']
+  
+  # Warning alert routing
+  warning_alert_scenario:
+    input_alert:
+      labels:
+        alertname: 'HighCPUUsage'
+        severity: 'warning'
+        service: 'api-server'
+        instance: 'api-01'
+        team: 'backend'
+      annotations:
+        summary: 'High CPU usage detected'
+        description: 'CPU usage above 80% for 5 minutes'
+    expected_route: 'warning-alerts'
+    expected_receivers: ['warning-alerts']
+    expected_grouping: ['alertname', 'severity']
+  
+  # Multi-route scenario (with continue)
+  multi_route_scenario:
+    input_alert:
+      labels:
+        alertname: 'DatabaseConnectionError'
+        severity: 'critical'
+        service: 'web-api'
+        instance: 'api-01'
+        team: 'platform'
+      annotations:
+        summary: 'Database connection failed'
+        description: 'Unable to connect to database'
+    expected_routes: ['web-critical', 'platform-critical']
+    expected_receivers: ['web-critical', 'platform-critical']
+  
+  # Inhibition scenario
+  inhibition_scenario:
+    source_alert:
+      labels:
+        alertname: 'NodeDown'
+        severity: 'critical'
+        instance: 'web-01'
+    target_alert:
+      labels:
+        alertname: 'HighCPUUsage'
+        severity: 'warning'
+        instance: 'web-01'
+    expected_inhibited: true
+    inhibition_rule: 'node-down-inhibition'
+  
+  # Silence scenario
+  silence_scenario:
+    alert:
+      labels:
+        alertname: 'HighMemoryUsage'
+        severity: 'warning'
+        instance: 'db-01'
+        service: 'database'
+    silence:
+      matchers:
+        - name: 'alertname'
+          value: 'HighMemoryUsage'
+        - name: 'instance'
+          value: 'db-01'
+      startsAt: '2023-01-01T00:00:00Z'
+      endsAt: '2023-01-01T02:00:00Z'
+    test_time: '2023-01-01T01:00:00Z'
+    expected_silenced: true
+
+# Performance tests
+performance_tests:
+  # Large routing tree
+  large_routing_tree:
+    routes_count: 1000
+    max_depth: 5
+    expected_match_time_ms: 100
+  
+  # High alert volume
+  high_alert_volume:
+    alerts_per_second: 1000
+    duration_seconds: 60
+    expected_processing_time_ms: 500
+  
+  # Complex regex matching
+  complex_regex_matching:
+    regex_patterns: 50
+    alerts_count: 10000
+    expected_match_time_ms: 200
+
+# Integration tests
+integration_tests:
+  # End-to-end alert flow
+  e2e_alert_flow:
+    steps:
+      - name: 'Send alert to Alertmanager'
+        action: 'POST /api/v1/alerts'
+        payload:
+          - labels:
+              alertname: 'TestAlert'
+              severity: 'critical'
+            annotations:
+              summary: 'Test alert'
+      
+      - name: 'Verify alert is received'
+        action: 'GET /api/v1/alerts'
+        expected_count: 1
+      
+      - name: 'Verify routing'
+        action: 'GET /api/v1/status'
+        expected_route: 'critical-alerts'
+      
+      - name: 'Verify notification sent'
+        action: 'CHECK notification_log'
+        expected_notification: 'critical-alerts'
+      
+      - name: 'Resolve alert'
+        action: 'POST /api/v1/alerts'
+        payload:
+          - labels:
+              alertname: 'TestAlert'
+              severity: 'critical'
+            endsAt: '2023-01-01T01:00:00Z'
+      
+      - name: 'Verify resolution notification'
+        action: 'CHECK notification_log'
+        expected_resolution: 'critical-alerts'
+
+# Cleanup configuration
+cleanup_tests:
+  # Test silence cleanup
+  silence_cleanup:
+    create_silences: 100
+    expire_after: '1h'
+    expected_cleanup_time: '5m'
+  
+  # Test notification cleanup
+  notification_cleanup:
+    create_notifications: 1000
+    retention_period: '24h'
+    expected_cleanup_time: '10m'

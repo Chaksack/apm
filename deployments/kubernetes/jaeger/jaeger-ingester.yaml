@@ -1,0 +1,283 @@
+# Jaeger Ingester Configuration
+# This configuration provides Kafka-based ingestion for high-volume tracing
+# Uncomment and configure for production use with Kafka
+
+# Kafka Ingester Deployment (Optional - Commented by default)
+# Uncomment this section to enable Kafka-based ingestion
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: jaeger-ingester
+#   namespace: jaeger
+#   labels:
+#     app: jaeger
+#     component: ingester
+# spec:
+#   replicas: 3  # Scale based on Kafka partition count
+#   selector:
+#     matchLabels:
+#       app: jaeger
+#       component: ingester
+#   template:
+#     metadata:
+#       labels:
+#         app: jaeger
+#         component: ingester
+#     spec:
+#       containers:
+#       - name: jaeger-ingester
+#         image: jaegertracing/jaeger-ingester:1.48
+#         env:
+#         # Kafka Configuration
+#         - name: KAFKA_CONSUMER_BROKERS
+#           value: "kafka-broker-1:9092,kafka-broker-2:9092,kafka-broker-3:9092"
+#         - name: KAFKA_CONSUMER_TOPIC
+#           value: "jaeger-spans"
+#         - name: KAFKA_CONSUMER_GROUP_ID
+#           value: "jaeger-ingester"
+#         - name: KAFKA_CONSUMER_CLIENT_ID
+#           value: "jaeger-ingester"
+#         - name: KAFKA_CONSUMER_ENCODING
+#           value: "protobuf"
+#         - name: KAFKA_CONSUMER_PARALLELISM
+#           value: "1000"
+#         
+#         # Storage Backend Configuration
+#         # Elasticsearch storage
+#         - name: SPAN_STORAGE_TYPE
+#           value: elasticsearch
+#         - name: ES_SERVER_URLS
+#           value: http://elasticsearch:9200
+#         - name: ES_USERNAME
+#           value: elastic
+#         - name: ES_PASSWORD
+#           valueFrom:
+#             secretKeyRef:
+#               name: jaeger-es-secret
+#               key: password
+#         - name: ES_INDEX_PREFIX
+#           value: jaeger
+#         - name: ES_BULK_SIZE
+#           value: "5000000"  # 5MB
+#         - name: ES_BULK_WORKERS
+#           value: "4"
+#         - name: ES_BULK_ACTIONS
+#           value: "1000"
+#         - name: ES_BULK_FLUSH_INTERVAL
+#           value: "1s"
+#         
+#         # Cassandra storage (alternative)
+#         # - name: SPAN_STORAGE_TYPE
+#         #   value: cassandra
+#         # - name: CASSANDRA_SERVERS
+#         #   value: cassandra
+#         # - name: CASSANDRA_KEYSPACE
+#         #   value: jaeger_v1_production
+#         
+#         # Batch Processing Settings
+#         - name: INGESTER_MAX_TRACES
+#           value: "50000"
+#         - name: INGESTER_MAX_SPAN_AGE
+#           value: "10m"
+#         - name: INGESTER_DEADLOCKINTERVAL
+#           value: "5m"
+#         
+#         # Performance Tuning
+#         - name: GOGC
+#           value: "400"
+#         
+#         ports:
+#         - containerPort: 14270  # Admin port for health check
+#           name: admin
+#           protocol: TCP
+#         - containerPort: 14271  # Metrics port
+#           name: metrics
+#           protocol: TCP
+#         
+#         readinessProbe:
+#           httpGet:
+#             path: /
+#             port: 14270
+#           initialDelaySeconds: 20
+#           periodSeconds: 10
+#         
+#         livenessProbe:
+#           httpGet:
+#             path: /
+#             port: 14270
+#           initialDelaySeconds: 60
+#           periodSeconds: 30
+#         
+#         resources:
+#           requests:
+#             memory: "1Gi"
+#             cpu: "1000m"
+#           limits:
+#             memory: "2Gi"
+#             cpu: "2000m"
+
+---
+# Kafka Producer Configuration for Collector
+# This ConfigMap provides Kafka producer settings for the collector
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jaeger-kafka-config
+  namespace: jaeger
+  labels:
+    app: jaeger
+    component: kafka-config
+data:
+  kafka-config.yaml: |
+    # Kafka Producer Configuration
+    producer:
+      brokers:
+        - kafka-broker-1:9092
+        - kafka-broker-2:9092
+        - kafka-broker-3:9092
+      topic: jaeger-spans
+      encoding: protobuf
+      required_acks: 1  # 0: no ack, 1: leader ack, -1: all replicas ack
+      compression: snappy  # none, gzip, snappy, lz4, zstd
+      compression_level: 6
+      batch_size: 100
+      batch_timeout: 1s
+      message_max_bytes: 1000000  # 1MB
+      
+    # Batch Processing Configuration
+    batch_processing:
+      enabled: true
+      workers: 10
+      queue_size: 1000
+      batch_size: 100
+      timeout: 1s
+      
+    # Retry Configuration
+    retry:
+      max_retries: 3
+      initial_interval: 100ms
+      max_interval: 1s
+      max_elapsed_time: 30s
+      
+    # Consumer Configuration (for ingester)
+    consumer:
+      group_id: jaeger-ingester
+      client_id_prefix: jaeger-ingester
+      session_timeout: 10s
+      auto_offset_reset: earliest
+      fetch_min_bytes: 1
+      fetch_default_bytes: 1048576  # 1MB
+      max_partition_fetch_bytes: 10485760  # 10MB
+      channel_buffer_size: 256
+      
+    # Performance Tuning
+    performance:
+      max_message_age: 10m
+      deadlock_interval: 5m
+      parallelism: 1000
+
+---
+# Collector Deployment Patch for Kafka
+# This patch adds Kafka configuration to the collector deployment
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jaeger-collector-kafka-patch
+  namespace: jaeger
+data:
+  patch.yaml: |
+    # Apply this patch to enable Kafka in the collector
+    spec:
+      template:
+        spec:
+          containers:
+          - name: jaeger-collector
+            env:
+            # Enable Kafka span export
+            - name: SPAN_STORAGE_TYPE
+              value: "kafka"
+            - name: KAFKA_PRODUCER_BROKERS
+              value: "kafka-broker-1:9092,kafka-broker-2:9092,kafka-broker-3:9092"
+            - name: KAFKA_PRODUCER_TOPIC
+              value: "jaeger-spans"
+            - name: KAFKA_PRODUCER_ENCODING
+              value: "protobuf"
+            - name: KAFKA_PRODUCER_BATCH_SIZE
+              value: "100"
+            - name: KAFKA_PRODUCER_BATCH_TIMEOUT
+              value: "1s"
+
+---
+# HorizontalPodAutoscaler for Ingester
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: jaeger-ingester-hpa
+  namespace: jaeger
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: jaeger-ingester
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 10
+        periodSeconds: 60
+
+---
+# PodDisruptionBudget for Ingester
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: jaeger-ingester-pdb
+  namespace: jaeger
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: jaeger
+      component: ingester
+
+---
+# Service Monitor for Prometheus Integration
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: jaeger-ingester
+  namespace: jaeger
+  labels:
+    app: jaeger
+    component: ingester
+spec:
+  selector:
+    matchLabels:
+      app: jaeger
+      component: ingester
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics

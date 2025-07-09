@@ -1,0 +1,286 @@
+stages:
+  - test
+  - analysis
+  - build
+  - security
+  - deploy
+
+variables:
+  GO_VERSION: "1.21"
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: "/certs"
+  SONARQUBE_USER_HOME: "${CI_PROJECT_DIR}/.sonar"
+  GIT_DEPTH: "0"  # Disable shallow clone for better analysis
+
+# Cache configuration
+.go-cache:
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}
+    paths:
+      - .go/pkg/mod/
+      - .sonar/cache
+    policy: pull-push
+
+# Before script for Go jobs
+.go-before-script: &go-before-script
+  - mkdir -p .go
+  - export GOPATH="$CI_PROJECT_DIR/.go"
+  - export PATH="$GOPATH/bin:$PATH"
+
+# Test stage
+test:unit:
+  stage: test
+  image: golang:${GO_VERSION}-alpine
+  extends: .go-cache
+  before_script:
+    - *go-before-script
+    - apk add --no-cache git gcc musl-dev
+  script:
+    - go mod download
+    - go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+    - go tool cover -func=coverage.out
+    - go tool cover -html=coverage.out -o coverage.html
+  coverage: '/total:\s+\(statements\)\s+(\d+.\d+)%/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+    paths:
+      - coverage.out
+      - coverage.html
+    expire_in: 1 week
+
+test:lint:
+  stage: test
+  image: golangci/golangci-lint:v1.55-alpine
+  extends: .go-cache
+  before_script:
+    - *go-before-script
+  script:
+    - golangci-lint run --timeout=5m --out-format=junit-xml > golangci-lint-report.xml
+  allow_failure: true
+  artifacts:
+    reports:
+      junit: golangci-lint-report.xml
+    paths:
+      - golangci-lint-report.xml
+    expire_in: 1 week
+
+# Analysis stage
+sonarqube:
+  stage: analysis
+  image:
+    name: sonarsource/sonar-scanner-cli:latest
+    entrypoint: [""]
+  extends: .go-cache
+  dependencies:
+    - test:unit
+    - test:lint
+  script:
+    - sonar-scanner
+      -Dsonar.projectKey=${CI_PROJECT_NAME}
+      -Dsonar.sources=.
+      -Dsonar.host.url=${SONARQUBE_URL}
+      -Dsonar.token=${SONARQUBE_TOKEN}
+      -Dsonar.go.coverage.reportPaths=coverage.out
+      -Dsonar.go.golangci-lint.reportPaths=golangci-lint-report.xml
+      -Dsonar.gitlab.project_id=${CI_PROJECT_ID}
+      -Dsonar.gitlab.commit_sha=${CI_COMMIT_SHA}
+      -Dsonar.gitlab.ref_name=${CI_COMMIT_REF_NAME}
+  only:
+    - main
+    - develop
+    - merge_requests
+
+sonarqube-quality-gate:
+  stage: analysis
+  image: alpine:latest
+  needs: ["sonarqube"]
+  before_script:
+    - apk add --no-cache curl jq
+  script:
+    - |
+      STATUS=$(curl -s -u ${SONARQUBE_TOKEN}: "${SONARQUBE_URL}/api/qualitygates/project_status?projectKey=${CI_PROJECT_NAME}" | jq -r '.projectStatus.status')
+      echo "Quality Gate Status: $STATUS"
+      if [ "$STATUS" != "OK" ]; then
+        echo "Quality Gate failed"
+        exit 1
+      fi
+  only:
+    - main
+    - develop
+    - merge_requests
+
+# Build stage
+build:binary:
+  stage: build
+  image: golang:${GO_VERSION}-alpine
+  extends: .go-cache
+  parallel:
+    matrix:
+      - GOOS: linux
+        GOARCH: amd64
+      - GOOS: linux
+        GOARCH: arm64
+      - GOOS: darwin
+        GOARCH: amd64
+      - GOOS: darwin
+        GOARCH: arm64
+      - GOOS: windows
+        GOARCH: amd64
+  before_script:
+    - *go-before-script
+    - apk add --no-cache git
+  script:
+    - export CGO_ENABLED=0
+    - OUTPUT_NAME="apm-${GOOS}-${GOARCH}"
+    - if [ "$GOOS" = "windows" ]; then OUTPUT_NAME="${OUTPUT_NAME}.exe"; fi
+    - go build -v -ldflags="-s -w -X main.version=${CI_COMMIT_SHA}" -o "dist/${OUTPUT_NAME}" ./cmd/apm
+  artifacts:
+    paths:
+      - dist/
+    expire_in: 1 week
+
+build:docker:
+  stage: build
+  image: docker:24-git
+  services:
+    - docker:24-dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - docker buildx create --use
+    - docker buildx build
+      --platform linux/amd64,linux/arm64
+      --tag $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
+      --tag $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
+      --build-arg VERSION=$CI_COMMIT_SHA
+      --build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+      --push .
+  only:
+    - main
+    - develop
+    - tags
+
+build:docker-latest:
+  stage: build
+  image: docker:24-git
+  services:
+    - docker:24-dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - docker buildx create --use
+    - docker buildx build
+      --platform linux/amd64,linux/arm64
+      --tag $CI_REGISTRY_IMAGE:latest
+      --build-arg VERSION=$CI_COMMIT_SHA
+      --build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+      --push .
+  only:
+    - main
+
+# Security stage
+security:trivy:
+  stage: security
+  image:
+    name: aquasec/trivy:latest
+    entrypoint: [""]
+  script:
+    - trivy fs --severity HIGH,CRITICAL --format json --output trivy-report.json .
+    - trivy fs --severity HIGH,CRITICAL --format table .
+  artifacts:
+    reports:
+      container_scanning: trivy-report.json
+    paths:
+      - trivy-report.json
+    expire_in: 1 week
+  allow_failure: true
+
+security:gosec:
+  stage: security
+  image: golang:${GO_VERSION}-alpine
+  extends: .go-cache
+  before_script:
+    - *go-before-script
+    - go install github.com/securego/gosec/v2/cmd/gosec@latest
+  script:
+    - gosec -fmt json -out gosec-report.json ./...
+    - gosec -fmt text ./...
+  artifacts:
+    paths:
+      - gosec-report.json
+    expire_in: 1 week
+  allow_failure: true
+
+security:dependency-check:
+  stage: security
+  image: golang:${GO_VERSION}-alpine
+  extends: .go-cache
+  before_script:
+    - *go-before-script
+    - go install golang.org/x/vuln/cmd/govulncheck@latest
+  script:
+    - govulncheck -json ./... > govuln-report.json || true
+    - govulncheck ./...
+  artifacts:
+    paths:
+      - govuln-report.json
+    expire_in: 1 week
+  allow_failure: true
+
+# Helm chart packaging
+helm:package:
+  stage: build
+  image: alpine/helm:3.13.0
+  script:
+    - helm lint ./charts/apm-stack
+    - helm package ./charts/apm-stack --version "0.1.0-${CI_COMMIT_SHA}"
+  artifacts:
+    paths:
+      - apm-stack-*.tgz
+    expire_in: 1 week
+  only:
+    - main
+    - tags
+
+# Deploy stage (example for development environment)
+deploy:dev:
+  stage: deploy
+  image: bitnami/kubectl:latest
+  before_script:
+    - echo "$KUBE_CONFIG" | base64 -d > ~/.kube/config
+  script:
+    - kubectl apply -f k8s/namespaces/
+    - kubectl apply -f k8s/
+    - kubectl set image deployment/apm-server apm-server=$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA -n apm
+    - kubectl rollout status deployment/apm-server -n apm
+  environment:
+    name: development
+    url: https://apm-dev.example.com
+  only:
+    - develop
+  when: manual
+
+# Deploy stage for production
+deploy:prod:
+  stage: deploy
+  image: bitnami/kubectl:latest
+  before_script:
+    - echo "$KUBE_CONFIG_PROD" | base64 -d > ~/.kube/config
+  script:
+    - kubectl apply -f k8s/namespaces/
+    - kubectl apply -f k8s/
+    - kubectl set image deployment/apm-server apm-server=$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA -n apm
+    - kubectl rollout status deployment/apm-server -n apm
+  environment:
+    name: production
+    url: https://apm.example.com
+  only:
+    - main
+  when: manual
+  needs:
+    - sonarqube-quality-gate
+    - security:trivy
+    - security:gosec

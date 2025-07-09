@@ -1,0 +1,227 @@
+performance_gate:
+  name: "APM Performance Quality Gate"
+  
+  load_testing:
+    enabled: true
+    tools:
+      - name: "k6"
+        scenarios:
+          - name: "baseline_load"
+            type: "constant_vus"
+            duration: "5m"
+            vus: 50
+            thresholds:
+              http_req_duration: "p(95)<500"
+              http_req_failed: "rate<0.1"
+              http_reqs: "rate>100"
+              
+          - name: "stress_test"
+            type: "ramping_vus"
+            duration: "10m"
+            stages:
+              - duration: "2m"
+                target: 100
+              - duration: "5m"
+                target: 200
+              - duration: "2m"
+                target: 300
+              - duration: "1m"
+                target: 0
+            thresholds:
+              http_req_duration: "p(95)<1000"
+              http_req_failed: "rate<0.15"
+              
+          - name: "spike_test"
+            type: "ramping_vus"
+            duration: "5m"
+            stages:
+              - duration: "30s"
+                target: 50
+              - duration: "1m"
+                target: 500
+              - duration: "30s"
+                target: 50
+              - duration: "1m"
+                target: 1000
+              - duration: "30s"
+                target: 50
+            thresholds:
+              http_req_duration: "p(95)<2000"
+              http_req_failed: "rate<0.2"
+              
+  response_time_requirements:
+    api_endpoints:
+      - path: "/api/v1/health"
+        methods: ["GET"]
+        thresholds:
+          p50: 50   # 50ms
+          p90: 100  # 100ms
+          p95: 200  # 200ms
+          p99: 500  # 500ms
+          
+      - path: "/api/v1/metrics"
+        methods: ["GET", "POST"]
+        thresholds:
+          p50: 100
+          p90: 300
+          p95: 500
+          p99: 1000
+          
+      - path: "/api/v1/alerts"
+        methods: ["GET", "POST", "PUT", "DELETE"]
+        thresholds:
+          p50: 200
+          p90: 500
+          p95: 1000
+          p99: 2000
+          
+      - path: "/api/v1/dashboards"
+        methods: ["GET"]
+        thresholds:
+          p50: 300
+          p90: 800
+          p95: 1500
+          p99: 3000
+          
+      - path: "/api/v1/search"
+        methods: ["GET", "POST"]
+        thresholds:
+          p50: 500
+          p90: 1000
+          p95: 2000
+          p99: 5000
+          
+  resource_usage_limits:
+    cpu:
+      baseline_max: 70      # 70% CPU utilization
+      stress_max: 85        # 85% CPU utilization under stress
+      spike_max: 95         # 95% CPU utilization during spikes
+      
+    memory:
+      baseline_max: 512     # 512MB memory usage
+      stress_max: 1024      # 1GB memory usage under stress
+      spike_max: 2048       # 2GB memory usage during spikes
+      memory_leak_threshold: 5  # 5% memory increase per hour
+      
+    disk:
+      io_read_max: 100      # 100MB/s read
+      io_write_max: 50      # 50MB/s write
+      disk_usage_max: 80    # 80% disk usage
+      
+    network:
+      bandwidth_max: 1000   # 1Gbps
+      connections_max: 1000 # 1000 concurrent connections
+      
+  database_performance:
+    connection_pool:
+      max_connections: 100
+      idle_timeout: "30s"
+      max_lifetime: "1h"
+      
+    query_performance:
+      slow_query_threshold: 1000  # 1 second
+      slow_query_max_count: 10    # Max 10 slow queries per test
+      
+      thresholds:
+        select_queries: 100    # 100ms for SELECT
+        insert_queries: 200    # 200ms for INSERT
+        update_queries: 300    # 300ms for UPDATE
+        delete_queries: 500    # 500ms for DELETE
+        
+    transaction_performance:
+      max_transaction_time: 5000  # 5 seconds
+      deadlock_max_count: 0       # No deadlocks allowed
+      
+  application_metrics:
+    throughput:
+      min_requests_per_second: 100
+      target_requests_per_second: 500
+      max_requests_per_second: 1000
+      
+    error_rates:
+      max_4xx_rate: 0.05    # 5% client errors
+      max_5xx_rate: 0.01    # 1% server errors
+      max_timeout_rate: 0.02 # 2% timeouts
+      
+    availability:
+      uptime_requirement: 99.9  # 99.9% uptime
+      max_downtime_minutes: 5   # 5 minutes max downtime
+      
+  monitoring_thresholds:
+    alerts:
+      - metric: "response_time_p95"
+        threshold: 1000
+        duration: "2m"
+        severity: "warning"
+        
+      - metric: "response_time_p95"
+        threshold: 2000
+        duration: "1m"
+        severity: "critical"
+        
+      - metric: "error_rate"
+        threshold: 0.05
+        duration: "1m"
+        severity: "warning"
+        
+      - metric: "error_rate"
+        threshold: 0.1
+        duration: "30s"
+        severity: "critical"
+        
+      - metric: "cpu_usage"
+        threshold: 80
+        duration: "5m"
+        severity: "warning"
+        
+      - metric: "memory_usage"
+        threshold: 90
+        duration: "2m"
+        severity: "critical"
+        
+  regression_detection:
+    enabled: true
+    baseline_comparison: true
+    thresholds:
+      performance_regression: 20  # 20% performance regression
+      resource_regression: 30     # 30% resource usage regression
+      
+    comparison_period: "7d"       # Compare with last 7 days
+    
+  reporting:
+    formats:
+      - "json"
+      - "html"
+      - "junit"
+      
+    outputs:
+      - path: "performance-report.json"
+        format: "json"
+      - path: "performance-report.html"
+        format: "html"
+      - path: "performance-junit.xml"
+        format: "junit"
+        
+  enforcement:
+    fail_on_threshold_breach: true
+    break_build: true
+    allow_overrides: false
+    
+    exceptions:
+      - test: "spike_test"
+        metric: "http_req_duration"
+        justification: "Spike test allows higher latency"
+        expiry: "2024-12-31"
+        
+  notifications:
+    enabled: true
+    channels:
+      - type: "slack"
+        webhook_url: "${SLACK_PERFORMANCE_WEBHOOK}"
+        threshold_breach: true
+        
+      - type: "email"
+        recipients:
+          - "performance@company.com"
+          - "devops@company.com"
+        critical_only: true

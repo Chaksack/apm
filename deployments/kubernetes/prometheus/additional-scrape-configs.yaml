@@ -1,0 +1,301 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-additional-scrape-configs
+  namespace: monitoring
+data:
+  additional-scrape-configs.yml: |
+    # Node Exporter
+    - job_name: 'node-exporter'
+      kubernetes_sd_configs:
+        - role: endpoints
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_endpoints_name]
+          action: keep
+          regex: node-exporter
+        - source_labels: [__meta_kubernetes_endpoint_port_name]
+          action: keep
+          regex: metrics
+        - source_labels: [__meta_kubernetes_namespace]
+          target_label: namespace
+        - source_labels: [__meta_kubernetes_pod_name]
+          target_label: pod
+        - source_labels: [__meta_kubernetes_pod_node_name]
+          target_label: node
+        - action: labelmap
+          regex: __meta_kubernetes_pod_label_(.+)
+
+    # cAdvisor metrics (container metrics)
+    - job_name: 'cadvisor'
+      kubernetes_sd_configs:
+        - role: node
+      scheme: https
+      tls_config:
+        ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+      bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+      relabel_configs:
+        - action: labelmap
+          regex: __meta_kubernetes_node_label_(.+)
+        - target_label: __address__
+          replacement: kubernetes.default.svc:443
+        - source_labels: [__meta_kubernetes_node_name]
+          regex: (.+)
+          target_label: __metrics_path__
+          replacement: /api/v1/nodes/${1}/proxy/metrics/cadvisor
+        - source_labels: [__meta_kubernetes_node_name]
+          target_label: node
+      metric_relabel_configs:
+        # Only keep container metrics
+        - source_labels: [__name__]
+          action: keep
+          regex: container_.*
+        # Drop some high cardinality metrics
+        - source_labels: [__name__]
+          action: drop
+          regex: container_network_tcp_usage_total|container_network_udp_usage_total|container_tasks_state|container_memory_failures_total
+
+    # kube-state-metrics
+    - job_name: 'kube-state-metrics'
+      kubernetes_sd_configs:
+        - role: service
+          namespaces:
+            names:
+              - kube-system
+              - monitoring
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name]
+          action: keep
+          regex: kube-state-metrics
+        - source_labels: [__meta_kubernetes_namespace]
+          target_label: namespace
+        - source_labels: [__meta_kubernetes_service_name]
+          target_label: service
+        - source_labels: [__meta_kubernetes_service_port_name]
+          action: keep
+          regex: http-metrics|metrics
+
+    # Custom application metrics with specific labels
+    - job_name: 'custom-app-metrics'
+      kubernetes_sd_configs:
+        - role: pod
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+          action: keep
+          regex: true
+        - source_labels: [__meta_kubernetes_pod_label_metrics_type]
+          action: keep
+          regex: custom
+        - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+          action: replace
+          target_label: __metrics_path__
+          regex: (.+)
+          replacement: $1
+        - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+          action: replace
+          regex: ([^:]+)(?::\d+)?;(\d+)
+          replacement: $1:$2
+          target_label: __address__
+        - action: labelmap
+          regex: __meta_kubernetes_pod_label_(.+)
+        - source_labels: [__meta_kubernetes_namespace]
+          target_label: namespace
+        - source_labels: [__meta_kubernetes_pod_name]
+          target_label: pod
+        - source_labels: [__meta_kubernetes_pod_label_app]
+          target_label: app
+        - source_labels: [__meta_kubernetes_pod_label_component]
+          target_label: component
+        - source_labels: [__meta_kubernetes_pod_label_environment]
+          target_label: environment
+
+    # Database metrics (PostgreSQL, MySQL, MongoDB)
+    - job_name: 'database-metrics'
+      kubernetes_sd_configs:
+        - role: service
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_label_app]
+          action: keep
+          regex: postgres-exporter|mysql-exporter|mongodb-exporter
+        - source_labels: [__meta_kubernetes_namespace]
+          target_label: namespace
+        - source_labels: [__meta_kubernetes_service_name]
+          target_label: service
+        - source_labels: [__meta_kubernetes_service_label_database]
+          target_label: database_type
+        - source_labels: [__meta_kubernetes_service_label_instance]
+          target_label: database_instance
+
+    # Redis metrics
+    - job_name: 'redis-metrics'
+      kubernetes_sd_configs:
+        - role: service
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_label_app]
+          action: keep
+          regex: redis-exporter
+        - source_labels: [__meta_kubernetes_namespace]
+          target_label: namespace
+        - source_labels: [__meta_kubernetes_service_name]
+          target_label: service
+        - source_labels: [__meta_kubernetes_service_label_redis_cluster]
+          target_label: redis_cluster
+
+    # Message queue metrics (RabbitMQ, Kafka)
+    - job_name: 'message-queue-metrics'
+      kubernetes_sd_configs:
+        - role: service
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_label_app]
+          action: keep
+          regex: rabbitmq-exporter|kafka-exporter
+        - source_labels: [__meta_kubernetes_namespace]
+          target_label: namespace
+        - source_labels: [__meta_kubernetes_service_name]
+          target_label: service
+        - source_labels: [__meta_kubernetes_service_label_queue_type]
+          target_label: queue_type
+        - source_labels: [__meta_kubernetes_service_label_cluster]
+          target_label: cluster
+
+    # Ingress controller metrics
+    - job_name: 'ingress-nginx'
+      kubernetes_sd_configs:
+        - role: service
+          namespaces:
+            names:
+              - ingress-nginx
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name]
+          action: keep
+          regex: ingress-nginx-controller-metrics
+        - source_labels: [__meta_kubernetes_namespace]
+          target_label: namespace
+        - source_labels: [__meta_kubernetes_service_name]
+          target_label: service
+
+    # Cert-manager metrics
+    - job_name: 'cert-manager'
+      kubernetes_sd_configs:
+        - role: service
+          namespaces:
+            names:
+              - cert-manager
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name]
+          action: keep
+          regex: cert-manager
+        - source_labels: [__meta_kubernetes_service_port_name]
+          action: keep
+          regex: tcp-prometheus-servicemonitor
+        - source_labels: [__meta_kubernetes_namespace]
+          target_label: namespace
+        - source_labels: [__meta_kubernetes_service_name]
+          target_label: service
+
+    # Kubernetes etcd
+    - job_name: 'kubernetes-etcd'
+      kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+              - kube-system
+      scheme: https
+      tls_config:
+        ca_file: /etc/prometheus/secrets/etcd-client-cert/ca.crt
+        cert_file: /etc/prometheus/secrets/etcd-client-cert/healthcheck-client.crt
+        key_file: /etc/prometheus/secrets/etcd-client-cert/healthcheck-client.key
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name]
+          action: keep
+          regex: etcd
+        - source_labels: [__meta_kubernetes_namespace]
+          target_label: namespace
+        - source_labels: [__meta_kubernetes_pod_name]
+          target_label: pod
+
+    # Kubernetes scheduler
+    - job_name: 'kubernetes-scheduler'
+      kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+              - kube-system
+      scheme: https
+      tls_config:
+        ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+      bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name]
+          action: keep
+          regex: kube-scheduler
+        - source_labels: [__meta_kubernetes_namespace]
+          target_label: namespace
+        - source_labels: [__meta_kubernetes_pod_name]
+          target_label: pod
+
+    # Kubernetes controller manager
+    - job_name: 'kubernetes-controller-manager'
+      kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+              - kube-system
+      scheme: https
+      tls_config:
+        ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+      bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name]
+          action: keep
+          regex: kube-controller-manager
+        - source_labels: [__meta_kubernetes_namespace]
+          target_label: namespace
+        - source_labels: [__meta_kubernetes_pod_name]
+          target_label: pod
+
+    # CoreDNS metrics
+    - job_name: 'coredns'
+      kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+              - kube-system
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name]
+          action: keep
+          regex: kube-dns
+        - source_labels: [__meta_kubernetes_endpoint_port_name]
+          action: keep
+          regex: metrics
+        - source_labels: [__meta_kubernetes_namespace]
+          target_label: namespace
+        - source_labels: [__meta_kubernetes_pod_name]
+          target_label: pod
+
+    # Blackbox exporter for endpoint monitoring
+    - job_name: 'blackbox-http'
+      metrics_path: /probe
+      params:
+        module: [http_2xx]
+      kubernetes_sd_configs:
+        - role: service
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_probe]
+          action: keep
+          regex: true
+        - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_probe_scheme]
+          target_label: __param_module
+          regex: (.+)
+          replacement: ${1}
+        - source_labels: [__address__]
+          target_label: __param_target
+        - target_label: __address__
+          replacement: blackbox-exporter.monitoring.svc.cluster.local:9115
+        - source_labels: [__param_target]
+          target_label: instance
+        - action: labelmap
+          regex: __meta_kubernetes_service_label_(.+)
+        - source_labels: [__meta_kubernetes_namespace]
+          target_label: namespace
+        - source_labels: [__meta_kubernetes_service_name]
+          target_label: service

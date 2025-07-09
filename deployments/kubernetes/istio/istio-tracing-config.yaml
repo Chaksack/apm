@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: istio-mesh-config
+  namespace: istio-system
+data:
+  mesh: |
+    defaultConfig:
+      tracing:
+        zipkin:
+          address: jaeger-collector.default.svc.cluster.local:9411
+        sampling: 100.0
+        customTags:
+          environment:
+            literal:
+              value: "production"
+          method:
+            request:
+              operation: METHOD
+          path:
+            request:
+              operation: PATH
+          response_code:
+            response:
+              operation: RESPONSE_CODE
+          protocol:
+            request:
+              operation: PROTOCOL
+        useRequestIdForTraceSampling: true
+    defaultProviders:
+      tracing:
+        - "jaeger"
+    extensionProviders:
+    - name: "jaeger"
+      envoyOtelAls:
+        service: jaeger-collector.default.svc.cluster.local
+        port: 4317
+    - name: "jaeger-zipkin"
+      zipkin:
+        service: jaeger-collector.default.svc.cluster.local
+        port: 9411
+        maxTagLength: 256

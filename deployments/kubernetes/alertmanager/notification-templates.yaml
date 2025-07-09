@@ -1,0 +1,292 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-templates
+  namespace: monitoring
+data:
+  default.tmpl: |
+    {{ define "__alertmanager" }}AlertManager{{ end }}
+    {{ define "__alertmanagerURL" }}{{ .ExternalURL }}/#/alerts?receiver={{ .Receiver | urlquery }}{{ end }}
+    
+    {{ define "__subject" }}[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .GroupLabels.SortedPairs.Values | join " " }} {{ if gt (len .CommonLabels) (len .GroupLabels) }}({{ with .CommonLabels.Remove .GroupLabels.Names }}{{ .Values | join " " }}{{ end }}){{ end }}{{ end }}
+    
+    {{ define "__description" }}{{ end }}
+    
+    {{ define "__text_alert_list" }}{{ range . }}Labels:
+    {{ range .Labels.SortedPairs }} - {{ .Name }} = {{ .Value }}
+    {{ end }}Annotations:
+    {{ range .Annotations.SortedPairs }} - {{ .Name }} = {{ .Value }}
+    {{ end }}Source: {{ .GeneratorURL }}
+    {{ end }}{{ end }}
+    
+    {{ define "__text_alert_summary" }}
+    {{ if gt (len .Alerts.Firing) 0 }}
+    Firing Alerts ({{ .Alerts.Firing | len }}):
+    {{ template "__text_alert_list" .Alerts.Firing }}
+    {{ end }}
+    {{ if gt (len .Alerts.Resolved) 0 }}
+    Resolved Alerts ({{ .Alerts.Resolved | len }}):
+    {{ template "__text_alert_list" .Alerts.Resolved }}
+    {{ end }}
+    {{ end }}
+    
+    # Slack Templates
+    {{ define "slack.default.text" }}
+    {{ range .Alerts }}
+    *Alert:* {{ .Annotations.summary }}{{ if .Labels.severity }} - `{{ .Labels.severity }}`{{ end }}
+    *Description:* {{ .Annotations.description }}
+    *Details:*
+      {{ range .Labels.SortedPairs }} • {{ .Name }}: `{{ .Value }}`
+      {{ end }}
+    {{ end }}
+    {{ end }}
+    
+    {{ define "slack.critical.text" }}
+    {{ range .Alerts }}
+    :rotating_light: *CRITICAL ALERT* :rotating_light:
+    *Alert:* {{ .Annotations.summary }}
+    *Severity:* `{{ .Labels.severity }}`
+    *Cluster:* `{{ .Labels.cluster }}`
+    *Namespace:* `{{ .Labels.namespace }}`
+    *Service:* `{{ .Labels.service }}`
+    
+    *Description:* {{ .Annotations.description }}
+    
+    *Impact:* {{ .Annotations.impact }}
+    *Action Required:* {{ .Annotations.action }}
+    
+    *Dashboard:* {{ .Annotations.dashboard }}
+    *Runbook:* {{ .Annotations.runbook }}
+    {{ end }}
+    {{ end }}
+    
+    {{ define "slack.high.text" }}
+    {{ range .Alerts }}
+    :warning: *High Priority Alert*
+    *Alert:* {{ .Annotations.summary }}
+    *Severity:* `{{ .Labels.severity }}`
+    *Service:* `{{ .Labels.service }}`
+    
+    {{ .Annotations.description }}
+    
+    *Next Steps:* {{ .Annotations.action }}
+    {{ end }}
+    {{ end }}
+    
+    {{ define "slack.warning.text" }}
+    *Warning:* {{ .GroupLabels.alertname }}
+    *Affected:* {{ .GroupLabels.namespace }}/{{ .GroupLabels.service }}
+    {{ if gt (len .Alerts) 1 }}*Count:* {{ .Alerts | len }} alerts{{ end }}
+    {{ range .Alerts }}
+    • {{ .Annotations.summary }}
+    {{ end }}
+    {{ end }}
+    
+    {{ define "slack.info.text" }}
+    {{ .GroupLabels.alertname }} - {{ .GroupLabels.namespace }}
+    {{ range .Alerts }}• {{ .Annotations.summary }}{{ end }}
+    {{ end }}
+    
+    {{ define "slack.production.text" }}
+    :warning: *Production Environment Alert*
+    *Alert:* {{ .GroupLabels.alertname }}
+    *Namespace:* `{{ .GroupLabels.namespace }}`
+    *Service:* `{{ .GroupLabels.service }}`
+    {{ range .Alerts }}
+    {{ .Annotations.description }}
+    *Impact:* {{ .Annotations.impact }}
+    {{ end }}
+    {{ end }}
+    
+    # Email Templates - HTML
+    {{ define "email.style" }}
+    <style>
+      body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+      .container { max-width: 800px; margin: 0 auto; padding: 20px; }
+      .header { background-color: #f8f9fa; border-left: 4px solid #dc3545; padding: 15px; margin-bottom: 20px; }
+      .header.resolved { border-left-color: #28a745; }
+      .header.warning { border-left-color: #ffc107; }
+      .alert-box { background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 15px; margin-bottom: 15px; }
+      .label { display: inline-block; padding: 2px 6px; background-color: #e9ecef; border-radius: 3px; font-size: 12px; margin-right: 5px; }
+      .critical { color: #dc3545; font-weight: bold; }
+      .warning { color: #ffc107; }
+      .info { color: #17a2b8; }
+      .resolved { color: #28a745; }
+      table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+      th, td { padding: 8px; text-align: left; border-bottom: 1px solid #dee2e6; }
+      th { background-color: #f8f9fa; font-weight: bold; }
+      .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #dee2e6; font-size: 12px; color: #6c757d; }
+    </style>
+    {{ end }}
+    
+    {{ define "email.critical.html" }}
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <title>Critical Alert</title>
+      {{ template "email.style" . }}
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h2 class="critical">CRITICAL ALERT - IMMEDIATE ACTION REQUIRED</h2>
+          <p><strong>Group:</strong> {{ .GroupLabels.alertname }}</p>
+          <p><strong>Status:</strong> {{ .Status | toUpper }}</p>
+        </div>
+        
+        {{ range .Alerts }}
+        <div class="alert-box">
+          <h3>{{ .Annotations.summary }}</h3>
+          <p><strong>Description:</strong> {{ .Annotations.description }}</p>
+          {{ if .Annotations.impact }}
+          <p><strong>Impact:</strong> <span class="critical">{{ .Annotations.impact }}</span></p>
+          {{ end }}
+          {{ if .Annotations.action }}
+          <p><strong>Action Required:</strong> {{ .Annotations.action }}</p>
+          {{ end }}
+          
+          <h4>Labels:</h4>
+          <table>
+            {{ range .Labels.SortedPairs }}
+            <tr>
+              <th>{{ .Name }}</th>
+              <td>{{ .Value }}</td>
+            </tr>
+            {{ end }}
+          </table>
+          
+          {{ if .Annotations.dashboard }}
+          <p><strong>Dashboard:</strong> <a href="{{ .Annotations.dashboard }}">View Dashboard</a></p>
+          {{ end }}
+          {{ if .Annotations.runbook }}
+          <p><strong>Runbook:</strong> <a href="{{ .Annotations.runbook }}">View Runbook</a></p>
+          {{ end }}
+          
+          <p><strong>Source:</strong> <a href="{{ .GeneratorURL }}">{{ .GeneratorURL }}</a></p>
+        </div>
+        {{ end }}
+        
+        <div class="footer">
+          <p>This alert was sent by {{ template "__alertmanager" . }}</p>
+          <p><a href="{{ template "__alertmanagerURL" . }}">View in AlertManager</a></p>
+        </div>
+      </div>
+    </body>
+    </html>
+    {{ end }}
+    
+    {{ define "email.high.html" }}
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <title>High Priority Alert</title>
+      {{ template "email.style" . }}
+    </head>
+    <body>
+      <div class="container">
+        <div class="header warning">
+          <h2>High Priority Alert</h2>
+          <p><strong>Alert:</strong> {{ .GroupLabels.alertname }}</p>
+          <p><strong>Status:</strong> {{ .Status | toUpper }}</p>
+        </div>
+        
+        {{ range .Alerts }}
+        <div class="alert-box">
+          <h3>{{ .Annotations.summary }}</h3>
+          <p>{{ .Annotations.description }}</p>
+          
+          <div style="margin-top: 15px;">
+            {{ range .Labels.SortedPairs }}
+            <span class="label">{{ .Name }}: {{ .Value }}</span>
+            {{ end }}
+          </div>
+          
+          {{ if .Annotations.action }}
+          <p style="margin-top: 15px;"><strong>Recommended Action:</strong> {{ .Annotations.action }}</p>
+          {{ end }}
+        </div>
+        {{ end }}
+        
+        <div class="footer">
+          <p><a href="{{ template "__alertmanagerURL" . }}">Manage Alert</a></p>
+        </div>
+      </div>
+    </body>
+    </html>
+    {{ end }}
+    
+    {{ define "email.production.html" }}
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <title>Production Alert</title>
+      {{ template "email.style" . }}
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h2>Production Environment Alert</h2>
+          <p><strong>Environment:</strong> Production</p>
+          <p><strong>Alert:</strong> {{ .GroupLabels.alertname }}</p>
+        </div>
+        
+        {{ template "__text_alert_summary" . }}
+        
+        <div class="footer">
+          <p>Production alerts require immediate attention. Please follow your incident response procedures.</p>
+          <p><a href="{{ template "__alertmanagerURL" . }}">View in AlertManager</a></p>
+        </div>
+      </div>
+    </body>
+    </html>
+    {{ end }}
+    
+    # Email Templates - Plain Text
+    {{ define "email.critical.text" }}
+    CRITICAL ALERT - IMMEDIATE ACTION REQUIRED
+    ==========================================
+    
+    Alert: {{ .GroupLabels.alertname }}
+    Status: {{ .Status | toUpper }}
+    
+    {{ range .Alerts }}
+    Summary: {{ .Annotations.summary }}
+    Description: {{ .Annotations.description }}
+    Impact: {{ .Annotations.impact }}
+    Action Required: {{ .Annotations.action }}
+    
+    Labels:
+    {{ range .Labels.SortedPairs }}  - {{ .Name }}: {{ .Value }}
+    {{ end }}
+    
+    Dashboard: {{ .Annotations.dashboard }}
+    Runbook: {{ .Annotations.runbook }}
+    Source: {{ .GeneratorURL }}
+    
+    {{ end }}
+    
+    --
+    View in AlertManager: {{ template "__alertmanagerURL" . }}
+    {{ end }}
+    
+    # Common Template Functions
+    {{ define "common.labels" }}
+    {{ range .Labels.SortedPairs }}{{ .Name }}={{ .Value }} {{ end }}
+    {{ end }}
+    
+    {{ define "common.annotations" }}
+    {{ range .Annotations.SortedPairs }}{{ .Name }}={{ .Value }} {{ end }}
+    {{ end }}
+    
+    {{ define "common.time" }}
+    {{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}
+    {{ end }}
+    
+    {{ define "common.duration" }}
+    {{ if ne .Status "firing" }}
+    Duration: {{ .StartsAt.Sub .EndsAt }}
+    {{ end }}
+    {{ end }}

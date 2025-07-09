@@ -1,0 +1,10 @@
+apiVersion: 1
+
+datasources:
+  - name: AlertManager
+    type: alertmanager
+    access: proxy
+    url: http://alertmanager.monitoring.svc.cluster.local:9093
+    jsonData:
+      implementation: prometheus
+    editable: true

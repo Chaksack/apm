@@ -1,0 +1,277 @@
+# ArgoCD Configuration for APM Stack
+# This file contains application configurations and environment-specific overrides
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-app-config
+  namespace: argocd
+data:
+  # Main application configuration
+  application.yaml: |
+    applications:
+      - name: apm-stack
+        namespace: apm
+        project: apm-project
+        source:
+          repoURL: https://github.com/your-org/apm
+          path: deployments/k8s
+          targetRevision: HEAD
+        destination:
+          server: https://kubernetes.default.svc
+          namespace: apm
+        syncPolicy:
+          automated:
+            prune: true
+            selfHeal: true
+        health:
+          timeout: 300s
+          retries: 5
+  
+  # Environment-specific overrides
+  environments:
+    development:
+      sync:
+        automated: true
+        prune: true
+        selfHeal: true
+      retry:
+        limit: 3
+        backoff:
+          duration: 5s
+          factor: 2
+          maxDuration: 1m
+      resources:
+        limits:
+          cpu: 500m
+          memory: 512Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi
+    
+    staging:
+      sync:
+        automated: true
+        prune: true
+        selfHeal: false  # Manual healing for staging
+      retry:
+        limit: 5
+        backoff:
+          duration: 10s
+          factor: 2
+          maxDuration: 3m
+      resources:
+        limits:
+          cpu: 1000m
+          memory: 1Gi
+        requests:
+          cpu: 200m
+          memory: 256Mi
+    
+    production:
+      sync:
+        automated: false  # Manual sync for production
+        prune: false
+        selfHeal: false
+      retry:
+        limit: 10
+        backoff:
+          duration: 30s
+          factor: 2
+          maxDuration: 10m
+      resources:
+        limits:
+          cpu: 2000m
+          memory: 4Gi
+        requests:
+          cpu: 500m
+          memory: 1Gi
+  
+  # Sync waves for dependency management
+  syncWaves:
+    infrastructure: -10
+    databases: -5
+    monitoring: -3
+    applications: 0
+    ingress: 5
+    tests: 10
+  
+  # Component configurations
+  components:
+    prometheus:
+      syncWave: -3
+      timeout: 600s
+      retry:
+        limit: 5
+      health:
+        timeout: 300s
+    
+    grafana:
+      syncWave: -2
+      timeout: 300s
+      retry:
+        limit: 3
+      health:
+        timeout: 180s
+    
+    elasticsearch:
+      syncWave: -5
+      timeout: 900s
+      retry:
+        limit: 10
+      health:
+        timeout: 600s
+    
+    jaeger:
+      syncWave: -1
+      timeout: 300s
+      retry:
+        limit: 3
+      health:
+        timeout: 180s
+    
+    apm-api:
+      syncWave: 0
+      timeout: 300s
+      retry:
+        limit: 5
+      health:
+        timeout: 180s
+    
+    apm-ui:
+      syncWave: 1
+      timeout: 300s
+      retry:
+        limit: 3
+      health:
+        timeout: 180s
+  
+  # Notification configurations
+  notifications:
+    slack:
+      enabled: true
+      webhook: https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK
+      channel: "#apm-alerts"
+      username: "ArgoCD"
+      template: |
+        {{if eq .app.status.sync.status "Succeeded"}}✅{{else}}❌{{end}} 
+        *{{.app.metadata.name}}* sync {{.app.status.sync.status}}
+        Environment: {{.app.metadata.labels.environment}}
+        Revision: {{.app.status.sync.revision}}
+        {{if .app.status.conditions}}
+        Message: {{range .app.status.conditions}}{{.message}}{{end}}
+        {{end}}
+    
+    email:
+      enabled: true
+      smtp:
+        host: smtp.company.com
+        port: 587
+        username: argocd@company.com
+      from: argocd@company.com
+      to:
+        - apm-team@company.com
+        - platform-team@company.com
+      subject: "ArgoCD Alert: {{.app.metadata.name}}"
+      template: |
+        Application: {{.app.metadata.name}}
+        Environment: {{.app.metadata.labels.environment}}
+        Sync Status: {{.app.status.sync.status}}
+        Health Status: {{.app.status.health.status}}
+        Repository: {{.app.spec.source.repoURL}}
+        Revision: {{.app.status.sync.revision}}
+        
+        {{if .app.status.conditions}}
+        Conditions:
+        {{range .app.status.conditions}}
+        - Type: {{.type}}
+          Status: {{.status}}
+          Message: {{.message}}
+        {{end}}
+        {{end}}
+  
+  # Security configurations
+  security:
+    # RBAC enforcement
+    rbac:
+      enforced: true
+      defaultPolicy: "role:readonly"
+    
+    # Resource tracking
+    tracking:
+      method: "annotation"
+      ignoreResourceUpdatesEnabled: true
+    
+    # Admission webhooks
+    admissionWebhooks:
+      enabled: true
+      failurePolicy: "Fail"
+    
+    # TLS configuration
+    tls:
+      minVersion: "1.2"
+      cipherSuites:
+        - "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
+        - "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"
+    
+    # Network policies
+    networkPolicies:
+      enabled: true
+      denyAll: true
+      allowedIngress:
+        - from: ingress-nginx
+        - from: monitoring
+      allowedEgress:
+        - to: kubernetes-api
+        - to: git-repositories
+  
+  # Monitoring and observability
+  monitoring:
+    metrics:
+      enabled: true
+      serviceMonitor:
+        enabled: true
+        interval: 30s
+        scrapeTimeout: 10s
+      
+    tracing:
+      enabled: true
+      jaeger:
+        endpoint: http://jaeger-collector:14268/api/traces
+      
+    logging:
+      level: info
+      format: json
+      audit:
+        enabled: true
+        path: /var/log/argocd/audit.log
+  
+  # Backup and disaster recovery
+  backup:
+    enabled: true
+    schedule: "0 2 * * *"  # Daily at 2 AM
+    retention: 30d
+    storage:
+      type: s3
+      bucket: argocd-backups
+      region: us-east-1
+      path: backups/
+  
+  # Performance tuning
+  performance:
+    concurrency:
+      applicationControllerReplicas: 2
+      repoServerReplicas: 2
+      serverReplicas: 2
+    
+    resources:
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+      requests:
+        cpu: 500m
+        memory: 1Gi
+    
+    timeout:
+      reconciliation: 300s
+      sync: 600s
+      health: 180s

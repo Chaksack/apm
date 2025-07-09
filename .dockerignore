@@ -1,0 +1,75 @@
+# Git files
+.git/
+.gitignore
+.gitattributes
+
+# CI/CD files
+.github/
+.gitlab-ci.yml
+.travis.yml
+.circleci/
+azure-pipelines.yml
+
+# Development files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Test files
+*_test.go
+testdata/
+coverage.*
+*.test
+*.out
+
+# Documentation
+*.md
+docs/
+LICENSE*
+CHANGELOG*
+
+# Build artifacts
+dist/
+build/
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+*.log
+
+# Vendor directory (if not using vendor)
+# vendor/
+
+# Environment files
+.env*
+!.env.example
+
+# Pre-commit
+.pre-commit-config.yaml
+.secrets.baseline
+
+# SonarQube
+sonar-project.properties
+.sonar/
+.scannerwork/
+
+# Kubernetes/Helm
+k8s/
+charts/
+*.yaml
+*.yml
+!docker-compose.yml
+
+# golangci-lint
+.golangci.yml
+golangci-lint-report.xml

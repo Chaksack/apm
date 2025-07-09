@@ -1,0 +1,76 @@
+# APM Solution Configuration Example
+# This file contains all configurable options for the APM solution
+# Environment variables can override these settings using the APM_ prefix
+# For example: APM_PROMETHEUS_ENDPOINT=http://prometheus:9090
+
+# Prometheus configuration
+prometheus:
+  endpoint: "http://localhost:9090"
+  scrape_interval: "15s"
+  evaluation_interval: "15s"
+
+# Grafana configuration
+grafana:
+  endpoint: "http://localhost:3000"
+  api_key: ""  # Set via APM_GRAFANA_API_KEY environment variable
+  org_id: 1
+
+# Loki configuration for log aggregation
+loki:
+  endpoint: "http://localhost:3100"
+  push_endpoint: "http://localhost:3100/loki/api/v1/push"
+  query_timeout: "30s"
+
+# Jaeger configuration for distributed tracing
+jaeger:
+  endpoint: "http://localhost:16686"
+  collector_endpoint: "http://localhost:14268/api/traces"
+  agent_host: "localhost"
+  agent_port: 6831
+
+# AlertManager configuration
+alertmanager:
+  endpoint: "http://localhost:9093"
+  webhook_url: ""  # Optional webhook for custom integrations
+  resolve_timeout: "5m"
+
+# Notification configurations
+notifications:
+  # Email/SMTP configuration
+  email:
+    smtp_host: "smtp.gmail.com"
+    smtp_port: 587
+    smtp_username: ""  # Set via APM_NOTIFICATIONS_EMAIL_SMTP_USERNAME
+    smtp_password: ""  # Set via APM_NOTIFICATIONS_EMAIL_SMTP_PASSWORD
+    smtp_from: "apm-alerts@example.com"
+    smtp_tls_enabled: true
+  
+  # Slack configuration
+  slack:
+    webhook_url: ""  # Set via APM_NOTIFICATIONS_SLACK_WEBHOOK_URL
+    channel: "#alerts"
+    username: "APM Bot"
+
+# Kubernetes configuration
+kubernetes:
+  namespace: "default"
+  in_cluster: false  # Set to true when running inside Kubernetes
+  config_path: ""    # Path to kubeconfig file (empty uses default)
+  label_selectors:
+    - "app.kubernetes.io/managed-by=apm"
+    - "monitoring=enabled"
+
+# Service discovery configuration
+service_discovery:
+  enabled: true
+  refresh_interval: "30s"
+  namespaces:
+    - "default"
+    - "monitoring"
+    - "production"
+  service_selectors:
+    - "app.kubernetes.io/part-of=microservices"
+    - "tier=backend"
+  pod_selectors:
+    - "app.kubernetes.io/component=api"
+    - "monitoring.enabled=true"

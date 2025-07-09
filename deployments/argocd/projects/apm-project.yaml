@@ -1,0 +1,177 @@
+# ArgoCD Project Definition for APM Stack
+# This defines the project with proper RBAC and resource restrictions
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: apm-project
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: APM Stack Project for monitoring and observability
+  
+  # Source repositories - restrict to specific repos
+  sourceRepos:
+    - https://github.com/your-org/apm
+    - https://github.com/your-org/apm-configs
+    - https://prometheus-community.github.io/helm-charts
+    - https://grafana.github.io/helm-charts
+    - https://elastic.github.io/helm-charts
+    - https://jaegertracing.github.io/helm-charts
+  
+  # Destination clusters and namespaces
+  destinations:
+    - namespace: apm
+      server: https://kubernetes.default.svc
+    - namespace: apm-monitoring
+      server: https://kubernetes.default.svc
+    - namespace: apm-infra
+      server: https://kubernetes.default.svc
+    - namespace: kube-system
+      server: https://kubernetes.default.svc
+  
+  # Cluster resource whitelist - only allow specific cluster-scoped resources
+  clusterResourceWhitelist:
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRole
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRoleBinding
+    - group: admissionregistration.k8s.io
+      kind: MutatingWebhookConfiguration
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+    - group: policy
+      kind: PodSecurityPolicy
+    - group: networking.k8s.io
+      kind: NetworkPolicy
+  
+  # Namespace resource whitelist - allowed resources in namespaces
+  namespaceResourceWhitelist:
+    - group: ""
+      kind: ConfigMap
+    - group: ""
+      kind: Secret
+    - group: ""
+      kind: Service
+    - group: ""
+      kind: ServiceAccount
+    - group: ""
+      kind: PersistentVolumeClaim
+    - group: ""
+      kind: Pod
+    - group: apps
+      kind: Deployment
+    - group: apps
+      kind: StatefulSet
+    - group: apps
+      kind: DaemonSet
+    - group: apps
+      kind: ReplicaSet
+    - group: batch
+      kind: Job
+    - group: batch
+      kind: CronJob
+    - group: networking.k8s.io
+      kind: Ingress
+    - group: networking.k8s.io
+      kind: NetworkPolicy
+    - group: rbac.authorization.k8s.io
+      kind: Role
+    - group: rbac.authorization.k8s.io
+      kind: RoleBinding
+    - group: monitoring.coreos.com
+      kind: ServiceMonitor
+    - group: monitoring.coreos.com
+      kind: PrometheusRule
+    - group: monitoring.coreos.com
+      kind: PodMonitor
+    - group: jaegertracing.io
+      kind: Jaeger
+    - group: elasticsearch.k8s.elastic.co
+      kind: Elasticsearch
+    - group: kibana.k8s.elastic.co
+      kind: Kibana
+  
+  # Resource blacklist - prevent dangerous operations
+  namespaceResourceBlacklist:
+    - group: ""
+      kind: ResourceQuota
+    - group: ""
+      kind: LimitRange
+    - group: policy
+      kind: PodDisruptionBudget
+  
+  # Role definitions for project access
+  roles:
+    - name: admin
+      description: Full access to APM project
+      policies:
+        - p, proj:apm-project:admin, applications, *, apm-project/*, allow
+        - p, proj:apm-project:admin, applications, action/*, apm-project/*, allow
+        - p, proj:apm-project:admin, repositories, *, apm-project/*, allow
+        - p, proj:apm-project:admin, certificates, *, apm-project/*, allow
+        - p, proj:apm-project:admin, clusters, *, apm-project/*, allow
+        - p, proj:apm-project:admin, exec, create, apm-project/*, allow
+        - p, proj:apm-project:admin, logs, get, apm-project/*, allow
+      groups:
+        - apm-admins
+        - platform-team
+    
+    - name: developer
+      description: Developer access to APM project
+      policies:
+        - p, proj:apm-project:developer, applications, get, apm-project/*, allow
+        - p, proj:apm-project:developer, applications, sync, apm-project/*, allow
+        - p, proj:apm-project:developer, repositories, get, apm-project/*, allow
+        - p, proj:apm-project:developer, logs, get, apm-project/*, allow
+      groups:
+        - apm-developers
+        - development-team
+    
+    - name: readonly
+      description: Read-only access to APM project
+      policies:
+        - p, proj:apm-project:readonly, applications, get, apm-project/*, allow
+        - p, proj:apm-project:readonly, repositories, get, apm-project/*, allow
+        - p, proj:apm-project:readonly, logs, get, apm-project/*, allow
+      groups:
+        - apm-readonly
+        - monitoring-team
+  
+  # Sync windows - define when automatic sync is allowed
+  syncWindows:
+    - kind: allow
+      schedule: "0 9-17 * * MON-FRI"  # Business hours Monday-Friday
+      duration: 8h
+      applications:
+        - "*"
+      manualSync: true
+    - kind: deny
+      schedule: "0 0-8,18-23 * * *"   # Outside business hours
+      duration: 10h
+      applications:
+        - "*"
+      manualSync: false
+    - kind: deny
+      schedule: "0 0-23 * * SAT,SUN"  # Weekends
+      duration: 24h
+      applications:
+        - "*"
+      manualSync: false
+  
+  # Signature keys for commit verification
+  signatureKeys:
+    - keyID: ABCDEF1234567890
+  
+  # Orphaned resources configuration
+  orphanedResources:
+    warn: true
+    ignore:
+      - group: apps
+        kind: ReplicaSet
+        name: "*"
+      - group: ""
+        kind: Pod
+        name: "*"

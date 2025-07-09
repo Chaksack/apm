@@ -1,0 +1,86 @@
+# Istio Telemetry v2 Configuration for Access Logs
+# This configuration sends access logs to stdout for Promtail collection
+apiVersion: telemetry.istio.io/v1alpha1
+kind: Telemetry
+metadata:
+  name: default-access-logs
+  namespace: istio-system
+spec:
+  # Apply to all workloads in the mesh
+  accessLogging:
+  - providers:
+    - name: default-access-logs
+  # Configure the access log provider
+---
+apiVersion: v1
+data:
+  mesh: |
+    defaultProviders:
+      accessLogging:
+      - default-access-logs
+    extensionProviders:
+    - name: default-access-logs
+      envoyFileAccessLog:
+        path: "/dev/stdout"
+        # JSON format for structured logging (easier for Promtail to parse)
+        format: |
+          {
+            "timestamp": "%START_TIME%",
+            "method": "%REQ(:METHOD)%",
+            "path": "%REQ(X-ENVOY-ORIGINAL-PATH?:PATH)%",
+            "protocol": "%PROTOCOL%",
+            "response_code": "%RESPONSE_CODE%",
+            "response_flags": "%RESPONSE_FLAGS%",
+            "bytes_received": "%BYTES_RECEIVED%",
+            "bytes_sent": "%BYTES_SENT%",
+            "duration": "%DURATION%",
+            "upstream_service_time": "%RESP(X-ENVOY-UPSTREAM-SERVICE-TIME)%",
+            "x_forwarded_for": "%REQ(X-FORWARDED-FOR)%",
+            "user_agent": "%REQ(USER-AGENT)%",
+            "request_id": "%REQ(X-REQUEST-ID)%",
+            "authority": "%REQ(:AUTHORITY)%",
+            "upstream_host": "%UPSTREAM_HOST%",
+            "source_address": "%DOWNSTREAM_REMOTE_ADDRESS%",
+            "source_workload": "%DOWNSTREAM_PEER_SERVICE_NAME%",
+            "source_namespace": "%DOWNSTREAM_PEER_NAMESPACE%",
+            "destination_workload": "%UPSTREAM_PEER_SERVICE_NAME%",
+            "destination_namespace": "%UPSTREAM_PEER_NAMESPACE%",
+            "destination_service": "%REQ(:AUTHORITY)%"
+          }
+kind: ConfigMap
+metadata:
+  name: istio-mesh-config
+  namespace: istio-system
+---
+# Alternative text format configuration (commented out)
+# Use this if you prefer traditional access log format
+# apiVersion: v1
+# data:
+#   mesh: |
+#     defaultProviders:
+#       accessLogging:
+#       - default-access-logs-text
+#     extensionProviders:
+#     - name: default-access-logs-text
+#       envoyFileAccessLog:
+#         path: "/dev/stdout"
+#         format: "[%START_TIME%] \"%REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %PROTOCOL%\" %RESPONSE_CODE% %RESPONSE_FLAGS% %BYTES_RECEIVED% %BYTES_SENT% %DURATION% %RESP(X-ENVOY-UPSTREAM-SERVICE-TIME)% \"%REQ(X-FORWARDED-FOR)%\" \"%REQ(USER-AGENT)%\" \"%REQ(X-REQUEST-ID)%\" \"%REQ(:AUTHORITY)%\" \"%UPSTREAM_HOST%\"\n"
+# kind: ConfigMap
+# metadata:
+#   name: istio-mesh-config-text
+#   namespace: istio-system
+---
+# Per-namespace access log configuration example (commented out)
+# Uncomment to enable/disable logs for specific namespaces
+# apiVersion: telemetry.istio.io/v1alpha1
+# kind: Telemetry
+# metadata:
+#   name: namespace-access-logs
+#   namespace: production
+# spec:
+#   accessLogging:
+#   - providers:
+#     - name: default-access-logs
+#     filter:
+#       # Only log errors (4xx and 5xx responses)
+#       expression: 'response.code >= 400'

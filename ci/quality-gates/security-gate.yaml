@@ -1,0 +1,190 @@
+security_gate:
+  name: "APM Security Quality Gate"
+  
+  vulnerability_scanning:
+    enabled: true
+    tools:
+      - name: "gosec"
+        severity_thresholds:
+          high: 0
+          medium: 5
+          low: 10
+        rules:
+          - "G101"  # Hardcoded credentials
+          - "G102"  # Bind to all interfaces
+          - "G103"  # Audit unsafe block
+          - "G104"  # Audit errors not checked
+          - "G105"  # Audit mathematical operations
+          - "G106"  # Audit ssh host key verification
+          - "G107"  # Url provided to HTTP request as taint input
+          - "G108"  # Profiling endpoint automatically exposed
+          - "G109"  # Potential integer overflow
+          - "G110"  # Potential DoS vulnerability via decompression bomb
+      
+      - name: "nancy"
+        severity_thresholds:
+          critical: 0
+          high: 2
+          medium: 5
+          low: 10
+        
+      - name: "trivy"
+        severity_thresholds:
+          critical: 0
+          high: 3
+          medium: 8
+          low: 15
+        scan_types:
+          - "vuln"
+          - "secret"
+          - "config"
+        
+  sast_findings:
+    enabled: true
+    thresholds:
+      critical: 0
+      high: 3
+      medium: 10
+      low: 20
+    
+    rules:
+      injection:
+        sql_injection: 0
+        command_injection: 0
+        ldap_injection: 0
+        xpath_injection: 0
+        
+      authentication:
+        weak_authentication: 2
+        broken_authentication: 0
+        session_fixation: 0
+        
+      authorization:
+        broken_access_control: 0
+        privilege_escalation: 0
+        
+      data_protection:
+        sensitive_data_exposure: 1
+        insufficient_encryption: 0
+        weak_cryptography: 2
+        
+      input_validation:
+        xss: 3
+        csrf: 0
+        deserialization: 0
+        
+      configuration:
+        security_misconfiguration: 5
+        default_credentials: 0
+        debug_mode: 0
+        
+  dependency_check:
+    enabled: true
+    tools:
+      - name: "go-mod-audit"
+        thresholds:
+          critical: 0
+          high: 3
+          medium: 8
+          low: 15
+          
+      - name: "snyk"
+        thresholds:
+          critical: 0
+          high: 2
+          medium: 5
+          low: 10
+          
+    rules:
+      outdated_dependencies:
+        major_versions_behind: 2
+        security_patches_behind: 0
+        
+      license_compliance:
+        forbidden_licenses:
+          - "GPL-2.0"
+          - "GPL-3.0"
+          - "AGPL-3.0"
+        warning_licenses:
+          - "LGPL-2.1"
+          - "LGPL-3.0"
+          
+      dependency_freshness:
+        max_age_days: 365
+        critical_max_age_days: 730
+        
+  secrets_scanning:
+    enabled: true
+    tools:
+      - name: "gitleaks"
+        rules:
+          - "aws-access-key-id"
+          - "aws-secret-access-key"
+          - "github-pat"
+          - "slack-webhook"
+          - "private-key"
+          - "jwt-token"
+          - "database-url"
+          - "api-key"
+    
+    exclusions:
+      - "test/**"
+      - "tests/**"
+      - "vendor/**"
+      - "node_modules/**"
+      - "*.test.go"
+      - "testdata/**"
+      
+  compliance_checks:
+    enabled: true
+    standards:
+      - name: "OWASP Top 10"
+        version: "2021"
+        required_coverage: 90
+        
+      - name: "CWE Top 25"
+        version: "2023"
+        required_coverage: 85
+        
+      - name: "SANS Top 25"
+        version: "2022"
+        required_coverage: 80
+        
+  reporting:
+    formats:
+      - "json"
+      - "sarif"
+      - "html"
+      
+    outputs:
+      - path: "security-report.json"
+        format: "json"
+      - path: "security-report.sarif"
+        format: "sarif"
+      - path: "security-report.html"
+        format: "html"
+        
+  enforcement:
+    fail_on_error: true
+    break_build: true
+    allow_overrides: false
+    
+    exceptions:
+      - rule: "G104"
+        justification: "Error handling reviewed and acceptable"
+        expiry: "2024-12-31"
+        files:
+          - "internal/legacy/old_code.go"
+          
+  notifications:
+    enabled: true
+    channels:
+      - type: "slack"
+        webhook_url: "${SLACK_SECURITY_WEBHOOK}"
+        severity_threshold: "high"
+        
+      - type: "email"
+        recipients:
+          - "security@company.com"
+          - "devops@company.com"
+        severity_threshold: "critical"

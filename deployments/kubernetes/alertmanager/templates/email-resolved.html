@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alert Resolved</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 600px;
+            margin: 20px auto;
+            background-color: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header {
+            background-color: #28a745;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .severity-badge {
+            display: inline-block;
+            background-color: rgba(255,255,255,0.2);
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            margin-top: 8px;
+        }
+        .content {
+            padding: 30px;
+        }
+        .alert-summary {
+            background-color: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 15px;
+            margin-bottom: 25px;
+            border-radius: 4px;
+        }
+        .alert-summary h2 {
+            margin: 0 0 10px 0;
+            font-size: 18px;
+            color: #155724;
+        }
+        .details-section {
+            margin-bottom: 25px;
+        }
+        .details-section h3 {
+            color: #333;
+            font-size: 16px;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #e9ecef;
+            padding-bottom: 8px;
+        }
+        .detail-item {
+            margin-bottom: 12px;
+            font-size: 14px;
+        }
+        .detail-label {
+            font-weight: 600;
+            color: #666;
+            display: inline-block;
+            min-width: 120px;
+        }
+        .detail-value {
+            color: #333;
+        }
+        .resolution-details {
+            background-color: #f0f9f0;
+            border-radius: 6px;
+            padding: 20px;
+            margin-bottom: 25px;
+        }
+        .resolution-details h3 {
+            margin-top: 0;
+            color: #28a745;
+            font-size: 16px;
+        }
+        .resolution-info {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .resolution-info li {
+            padding: 8px 0;
+            padding-left: 25px;
+            position: relative;
+            font-size: 14px;
+        }
+        .resolution-info li:before {
+            content: "✓";
+            color: #28a745;
+            position: absolute;
+            left: 0;
+            font-weight: bold;
+            font-size: 16px;
+        }
+        .timeline-section {
+            background-color: #f8f9fa;
+            border-radius: 6px;
+            padding: 20px;
+            margin-bottom: 25px;
+        }
+        .timeline-section h3 {
+            margin-top: 0;
+            color: #333;
+            font-size: 16px;
+        }
+        .timeline-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #e9ecef;
+            font-size: 14px;
+        }
+        .timeline-item:last-child {
+            border-bottom: none;
+        }
+        .timeline-label {
+            font-weight: 600;
+            color: #666;
+        }
+        .timeline-value {
+            color: #333;
+        }
+        .footer {
+            background-color: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            font-size: 12px;
+            color: #666;
+        }
+        .labels {
+            margin-top: 15px;
+        }
+        .label-item {
+            display: inline-block;
+            background-color: #e9ecef;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+            margin: 2px;
+            font-family: monospace;
+        }
+        .success-message {
+            background-color: #e7f3e7;
+            border: 1px solid #c3e6c3;
+            border-radius: 6px;
+            padding: 15px;
+            margin-top: 20px;
+            text-align: center;
+            color: #155724;
+            font-size: 14px;
+        }
+        .duration-highlight {
+            background-color: #fff3cd;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-weight: 600;
+            color: #856404;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>✅ ALERT RESOLVED</h1>
+            <div class="severity-badge">ISSUE CLEARED</div>
+        </div>
+        
+        <div class="content">
+            <div class="alert-summary">
+                <h2>{{ .GroupLabels.alertname }}</h2>
+                <div>{{ .CommonAnnotations.summary }} - Now Resolved</div>
+            </div>
+            
+            <div class="details-section">
+                <h3>Resolution Details</h3>
+                <div class="detail-item">
+                    <span class="detail-label">Alert Name:</span>
+                    <span class="detail-value">{{ .GroupLabels.alertname }}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Environment:</span>
+                    <span class="detail-value">{{ .GroupLabels.env | default "production" }}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Service:</span>
+                    <span class="detail-value">{{ .GroupLabels.service | default "unknown" }}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Resolution Time:</span>
+                    <span class="detail-value">{{ .Alerts.Resolved | len }} alerts resolved</span>
+                </div>
+            </div>
+            
+            <div class="resolution-details">
+                <h3>✨ Resolution Summary</h3>
+                <ul class="resolution-info">
+                    <li>Alert condition has been cleared</li>
+                    <li>Service is operating normally</li>
+                    <li>No further action required</li>
+                    <li>Monitoring continues as normal</li>
+                </ul>
+            </div>
+            
+            <div class="timeline-section">
+                <h3>📅 Alert Timeline</h3>
+                {{ range .Alerts.Resolved }}
+                <div class="timeline-item">
+                    <span class="timeline-label">Alert Started:</span>
+                    <span class="timeline-value">{{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}</span>
+                </div>
+                <div class="timeline-item">
+                    <span class="timeline-label">Alert Resolved:</span>
+                    <span class="timeline-value">{{ .EndsAt.Format "2006-01-02 15:04:05 MST" }}</span>
+                </div>
+                <div class="timeline-item">
+                    <span class="timeline-label">Total Duration:</span>
+                    <span class="timeline-value">
+                        <span class="duration-highlight">{{ .EndsAt.Sub .StartsAt }}</span>
+                    </span>
+                </div>
+                {{ end }}
+            </div>
+            
+            <div class="details-section">
+                <h3>Previously Affected Instances</h3>
+                {{ range .Alerts.Resolved }}
+                <div class="detail-item">
+                    <span class="detail-label">Instance:</span>
+                    <span class="detail-value">{{ .Labels.instance | default "N/A" }} - ✅ Recovered</span>
+                    {{ if .Annotations.description }}
+                    <div style="margin-left: 120px; margin-top: 5px; color: #666; font-size: 13px;">
+                        {{ .Annotations.description }}
+                    </div>
+                    {{ end }}
+                </div>
+                {{ end }}
+            </div>
+            
+            <div class="success-message">
+                <strong>Great news!</strong> The alert has been successfully resolved. 
+                System is back to normal operation.
+            </div>
+            
+            <div class="labels">
+                <strong>Labels:</strong>
+                {{ range $key, $value := .GroupLabels }}
+                <span class="label-item">{{ $key }}={{ $value }}</span>
+                {{ end }}
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>This is an automated alert from APM AlertManager</p>
+            <p>Status: RESOLVED | Time: {{ .ExternalURL }}</p>
+            <p style="margin-top: 10px; font-size: 11px;">
+                Thank you for your attention to this alert
+            </p>
+        </div>
+    </div>
+</body>
+</html>

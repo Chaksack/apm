@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: apm-system
+  labels:
+    name: apm-system
+    app.kubernetes.io/name: apm-system
+    app.kubernetes.io/part-of: apm-stack

@@ -1,0 +1,77 @@
+# Istio Telemetry v2 Configuration for Metrics
+# This configuration enables standard Istio metrics collection
+apiVersion: telemetry.istio.io/v1alpha1
+kind: Telemetry
+metadata:
+  name: default-metrics
+  namespace: istio-system
+spec:
+  # Apply to all workloads in the mesh
+  metrics:
+  - providers:
+    - name: prometheus
+    # Configure standard Istio metrics
+    - dimensions:
+        # Standard dimensions for request metrics
+        request_protocol: request.protocol | "unknown"
+        response_code: response.code | 200
+        source_workload: source.workload.name | "unknown"
+        source_app: source.labels["app"] | "unknown"
+        destination_service_name: destination.service.name | "unknown"
+        destination_service_namespace: destination.service.namespace | "unknown"
+        destination_workload: destination.workload.name | "unknown"
+        destination_app: destination.labels["app"] | "unknown"
+        destination_version: destination.labels["version"] | "unknown"
+        # Custom dimensions for better observability
+        method: request.method | "unknown"
+        path: request.path | "unknown"
+    # Enable standard metrics
+    - name: REQUEST_COUNT
+      dimensions:
+        reporter: conditional((context.reporter.kind | "inbound") == "outbound", "source", "destination")
+      value: "1"
+      unit: REQUEST
+    - name: REQUEST_DURATION
+      dimensions:
+        reporter: conditional((context.reporter.kind | "inbound") == "outbound", "source", "destination")
+      value: response.duration | "0ms"
+      unit: MILLISECONDS
+    - name: REQUEST_SIZE
+      dimensions:
+        reporter: conditional((context.reporter.kind | "inbound") == "outbound", "source", "destination")
+      value: request.size | 0
+      unit: BYTES
+    - name: RESPONSE_SIZE
+      dimensions:
+        reporter: conditional((context.reporter.kind | "inbound") == "outbound", "source", "destination")
+      value: response.size | 0
+      unit: BYTES
+    # Configure tags for better metric organization
+    tags:
+      # Add custom tags for business logic
+      - name: custom_tags
+        operation: UPSERT
+        value: |
+          {
+            "environment": "development",
+            "cluster": "primary"
+          }
+---
+# Per-namespace override example (commented out)
+# Uncomment and modify to override metrics for specific namespaces
+# apiVersion: telemetry.istio.io/v1alpha1
+# kind: Telemetry
+# metadata:
+#   name: namespace-metrics
+#   namespace: production
+# spec:
+#   metrics:
+#   - providers:
+#     - name: prometheus
+#     overrides:
+#     # Disable metrics for specific paths
+#     - match:
+#         metric: ALL_METRICS
+#         customDimensions:
+#           path: ["/health", "/ready", "/metrics"]
+#       disabled: true

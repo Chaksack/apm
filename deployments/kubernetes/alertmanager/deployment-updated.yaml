@@ -1,0 +1,187 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alertmanager
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: alertmanager
+  template:
+    metadata:
+      labels:
+        app: alertmanager
+      annotations:
+        # Force pod restart when config changes
+        checksum/config: {{ include (print $.Template.BasePath "/alertmanager-config.yaml") . | sha256sum }}
+        checksum/templates: {{ include (print $.Template.BasePath "/notification-templates.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: alertmanager
+      securityContext:
+        runAsUser: 65534
+        runAsNonRoot: true
+        fsGroup: 65534
+      containers:
+      - name: alertmanager
+        image: prom/alertmanager:v0.27.0
+        ports:
+        - containerPort: 9093
+          name: http
+          protocol: TCP
+        - containerPort: 9094
+          name: cluster
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /-/healthy
+            port: http
+          initialDelaySeconds: 30
+          timeoutSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /-/ready
+            port: http
+          initialDelaySeconds: 5
+          timeoutSeconds: 10
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "200m"
+        volumeMounts:
+        - name: config
+          mountPath: /etc/alertmanager
+        - name: templates
+          mountPath: /etc/alertmanager/templates
+        - name: secrets
+          mountPath: /etc/alertmanager/secrets
+          readOnly: true
+        - name: storage
+          mountPath: /alertmanager
+        args:
+        - --config.file=/etc/alertmanager/alertmanager.yml
+        - --storage.path=/alertmanager
+        - --data.retention=120h
+        - --web.external-url=http://alertmanager.monitoring.svc.cluster.local:9093
+        - --cluster.advertise-address=$(POD_IP):9094
+        - --cluster.listen-address=0.0.0.0:9094
+        - --log.level=info
+        env:
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+      volumes:
+      - name: config
+        configMap:
+          name: alertmanager-config
+          items:
+          - key: alertmanager.yml
+            path: alertmanager.yml
+      - name: templates
+        configMap:
+          name: alertmanager-templates
+          items:
+          - key: default.tmpl
+            path: default.tmpl
+      - name: secrets
+        projected:
+          sources:
+          - secret:
+              name: alertmanager-email-credentials
+              items:
+              - key: smtp-password
+                path: smtp-password
+          - secret:
+              name: alertmanager-slack-credentials
+              items:
+              - key: slack-webhook
+                path: slack-webhook
+              optional: true
+          - secret:
+              name: alertmanager-webhook-credentials
+              items:
+              - key: pagerduty-webhook
+                path: pagerduty-webhook
+              - key: prod-pagerduty-webhook
+                path: prod-pagerduty-webhook
+              optional: true
+      - name: storage
+        persistentVolumeClaim:
+          claimName: alertmanager-storage
+---
+# PersistentVolumeClaim for AlertManager storage
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: alertmanager-storage
+  namespace: monitoring
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  # Uncomment and modify based on your storage class
+  # storageClassName: fast-ssd
+---
+# ServiceAccount for AlertManager
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: alertmanager
+  namespace: monitoring
+---
+# Service for AlertManager
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager
+  namespace: monitoring
+  labels:
+    app: alertmanager
+spec:
+  selector:
+    app: alertmanager
+  ports:
+  - name: http
+    port: 9093
+    targetPort: http
+    protocol: TCP
+  - name: cluster
+    port: 9094
+    targetPort: cluster
+    protocol: TCP
+  type: ClusterIP
+---
+# Optional: Ingress for external access
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: alertmanager
+  namespace: monitoring
+  annotations:
+    # Add your ingress controller specific annotations
+    # nginx.ingress.kubernetes.io/auth-type: basic
+    # nginx.ingress.kubernetes.io/auth-secret: alertmanager-basic-auth
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: alertmanager.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: alertmanager
+            port:
+              name: http
+  # Uncomment for TLS
+  # tls:
+  # - hosts:
+  #   - alertmanager.example.com
+  #   secretName: alertmanager-tls

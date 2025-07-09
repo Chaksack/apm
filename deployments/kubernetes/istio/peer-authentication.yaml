@@ -1,0 +1,29 @@
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: istio-system
+spec:
+  # PERMISSIVE mode allows both mTLS and plain text traffic
+  # This enables gradual rollout of mTLS
+  mtls:
+    mode: PERMISSIVE
+---
+# Per-namespace PeerAuthentication for monitoring namespace
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: prometheus-metrics
+  namespace: default
+spec:
+  # Allow both mTLS and plain text for metrics scraping
+  mtls:
+    mode: PERMISSIVE
+  # Specific port exceptions for metrics endpoints
+  portLevelMtls:
+    15090:
+      mode: DISABLE  # Envoy metrics port
+    15014:
+      mode: DISABLE  # Istio control plane metrics port
+    9090:
+      mode: DISABLE  # Prometheus metrics port

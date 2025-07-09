@@ -1,0 +1,160 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-provisioning
+  namespace: monitoring
+data:
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      # APM Dashboards
+      - name: 'APM - Core'
+        orgId: 1
+        folder: 'APM'
+        folderUid: 'apm-core'
+        type: file
+        disableDeletion: true
+        updateIntervalSeconds: 30
+        allowUiUpdates: true
+        options:
+          path: /var/lib/grafana/dashboards/apm-core
+          foldersFromFilesStructure: false
+      
+      # Log Analysis Dashboards
+      - name: 'APM - Logs'
+        orgId: 1
+        folder: 'APM/Logs'
+        folderUid: 'apm-logs'
+        type: file
+        disableDeletion: true
+        updateIntervalSeconds: 30
+        allowUiUpdates: true
+        options:
+          path: /var/lib/grafana/dashboards/apm-logs
+          foldersFromFilesStructure: false
+      
+      # Tracing Dashboards
+      - name: 'APM - Tracing'
+        orgId: 1
+        folder: 'APM/Tracing'
+        folderUid: 'apm-tracing'
+        type: file
+        disableDeletion: true
+        updateIntervalSeconds: 30
+        allowUiUpdates: true
+        options:
+          path: /var/lib/grafana/dashboards/apm-tracing
+          foldersFromFilesStructure: false
+      
+      # Unified Observability
+      - name: 'APM - Unified'
+        orgId: 1
+        folder: 'APM/Unified'
+        folderUid: 'apm-unified'
+        type: file
+        disableDeletion: true
+        updateIntervalSeconds: 30
+        allowUiUpdates: true
+        options:
+          path: /var/lib/grafana/dashboards/apm-unified
+          foldersFromFilesStructure: false
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards-apm-logs
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  log-analysis.json: |
+{{ .Files.Get "dashboards/log-analysis.json" | indent 4 }}
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards-apm-tracing
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  distributed-tracing.json: |
+{{ .Files.Get "dashboards/distributed-tracing.json" | indent 4 }}
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards-apm-unified
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  unified-observability.json: |
+{{ .Files.Get "dashboards/unified-observability.json" | indent 4 }}
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  template:
+    spec:
+      containers:
+      - name: grafana
+        volumeMounts:
+        # Dashboard provisioning config
+        - name: dashboard-provisioning
+          mountPath: /etc/grafana/provisioning/dashboards
+        # Dashboard JSON files
+        - name: dashboards-apm-logs
+          mountPath: /var/lib/grafana/dashboards/apm-logs
+        - name: dashboards-apm-tracing
+          mountPath: /var/lib/grafana/dashboards/apm-tracing
+        - name: dashboards-apm-unified
+          mountPath: /var/lib/grafana/dashboards/apm-unified
+      volumes:
+      # Dashboard provisioning config
+      - name: dashboard-provisioning
+        configMap:
+          name: grafana-dashboard-provisioning
+      # Dashboard JSON files
+      - name: dashboards-apm-logs
+        configMap:
+          name: grafana-dashboards-apm-logs
+      - name: dashboards-apm-tracing
+        configMap:
+          name: grafana-dashboards-apm-tracing
+      - name: dashboards-apm-unified
+        configMap:
+          name: grafana-dashboards-apm-unified
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: grafana-dashboard-reader
+  namespace: monitoring
+rules:
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: grafana-dashboard-reader
+  namespace: monitoring
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: grafana-dashboard-reader
+subjects:
+- kind: ServiceAccount
+  name: grafana
+  namespace: monitoring

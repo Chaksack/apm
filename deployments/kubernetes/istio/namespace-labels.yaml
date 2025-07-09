@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: apm-system
+  labels:
+    istio-injection: enabled
+    name: apm-system
+---
+# Alternative: Patch existing namespace
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: namespace-patch-instructions
+  namespace: default
+data:
+  patch-command: |
+    # To patch an existing namespace, run:
+    kubectl label namespace apm-system istio-injection=enabled --overwrite
+    
+    # To verify the label was applied:
+    kubectl get namespace apm-system --show-labels

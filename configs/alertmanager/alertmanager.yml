@@ -1,0 +1,90 @@
+global:
+  resolve_timeout: 5m
+  smtp_smarthost: 'localhost:25'
+  smtp_from: 'alertmanager@example.com'
+  smtp_require_tls: false
+  slack_api_url: 'YOUR_SLACK_WEBHOOK_URL'
+
+# Templates directory
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+# Root route
+route:
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 12h
+  receiver: 'default'
+  
+  routes:
+    # Critical alerts
+    - match:
+        severity: critical
+      receiver: 'critical-alerts'
+      group_wait: 10s
+      repeat_interval: 1h
+      
+    # Warning alerts
+    - match:
+        severity: warning
+      receiver: 'warning-alerts'
+      group_wait: 30s
+      repeat_interval: 4h
+      
+    # Development environment
+    - match:
+        environment: development
+      receiver: 'dev-alerts'
+      group_wait: 1m
+      repeat_interval: 12h
+
+# Receivers
+receivers:
+  - name: 'default'
+    # Default receiver - logs only
+    
+  - name: 'critical-alerts'
+    email_configs:
+      - to: 'oncall@example.com'
+        headers:
+          Subject: '[CRITICAL] Alert: {{ .GroupLabels.alertname }}'
+        html: |
+          <h2>Critical Alert!</h2>
+          <p><strong>Alert:</strong> {{ .GroupLabels.alertname }}</p>
+          <p><strong>Details:</strong></p>
+          {{ range .Alerts }}
+          <ul>
+            <li>{{ .Annotations.summary }}</li>
+            <li>{{ .Annotations.description }}</li>
+          </ul>
+          {{ end }}
+    slack_configs:
+      - channel: '#critical-alerts'
+        title: 'Critical Alert: {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
+        send_resolved: true
+        
+  - name: 'warning-alerts'
+    email_configs:
+      - to: 'team@example.com'
+        headers:
+          Subject: '[WARNING] Alert: {{ .GroupLabels.alertname }}'
+    slack_configs:
+      - channel: '#alerts'
+        title: 'Warning: {{ .GroupLabels.alertname }}'
+        send_resolved: true
+        
+  - name: 'dev-alerts'
+    slack_configs:
+      - channel: '#dev-alerts'
+        title: '[DEV] {{ .GroupLabels.alertname }}'
+        send_resolved: false
+
+# Inhibition rules
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'cluster', 'service']

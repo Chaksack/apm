@@ -1,0 +1,568 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  name: apm-deployment-pipeline
+  namespace: apm-system
+  annotations:
+    description: "Multi-stage deployment pipeline for APM stack with approval gates and monitoring"
+spec:
+  entrypoint: deployment-pipeline
+  serviceAccountName: apm-deploy-sa
+  
+  # Global parameters
+  arguments:
+    parameters:
+      - name: image-tag
+        value: "latest"
+      - name: environment
+        value: "dev"
+      - name: deployment-method
+        value: "helm"  # helm or kubernetes
+      - name: skip-tests
+        value: "false"
+      - name: auto-approve
+        value: "false"
+      - name: slack-channel
+        value: "#apm-deployments"
+  
+  # Volume templates for shared storage
+  volumeClaimTemplates:
+    - metadata:
+        name: workspace
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
+  
+  templates:
+    # Main deployment pipeline template
+    - name: deployment-pipeline
+      dag:
+        tasks:
+          # Development environment
+          - name: deploy-dev
+            template: deploy-environment
+            arguments:
+              parameters:
+                - name: environment
+                  value: "dev"
+                - name: image-tag
+                  value: "{{workflow.parameters.image-tag}}"
+                - name: deployment-method
+                  value: "{{workflow.parameters.deployment-method}}"
+          
+          - name: smoke-tests-dev
+            template: smoke-tests
+            arguments:
+              parameters:
+                - name: environment
+                  value: "dev"
+            dependencies: [deploy-dev]
+          
+          # Staging environment with approval gate
+          - name: approval-staging
+            template: approval-gate
+            arguments:
+              parameters:
+                - name: environment
+                  value: "staging"
+                - name: auto-approve
+                  value: "{{workflow.parameters.auto-approve}}"
+            dependencies: [smoke-tests-dev]
+          
+          - name: deploy-staging
+            template: deploy-environment
+            arguments:
+              parameters:
+                - name: environment
+                  value: "staging"
+                - name: image-tag
+                  value: "{{workflow.parameters.image-tag}}"
+                - name: deployment-method
+                  value: "{{workflow.parameters.deployment-method}}"
+            dependencies: [approval-staging]
+          
+          - name: smoke-tests-staging
+            template: smoke-tests
+            arguments:
+              parameters:
+                - name: environment
+                  value: "staging"
+            dependencies: [deploy-staging]
+          
+          - name: integration-tests-staging
+            template: integration-tests
+            arguments:
+              parameters:
+                - name: environment
+                  value: "staging"
+            dependencies: [smoke-tests-staging]
+          
+          # Production environment with approval gate
+          - name: approval-production
+            template: approval-gate
+            arguments:
+              parameters:
+                - name: environment
+                  value: "production"
+                - name: auto-approve
+                  value: "false"  # Always require manual approval for prod
+            dependencies: [integration-tests-staging]
+          
+          - name: deploy-production
+            template: deploy-environment
+            arguments:
+              parameters:
+                - name: environment
+                  value: "prod"
+                - name: image-tag
+                  value: "{{workflow.parameters.image-tag}}"
+                - name: deployment-method
+                  value: "{{workflow.parameters.deployment-method}}"
+            dependencies: [approval-production]
+          
+          - name: smoke-tests-production
+            template: smoke-tests
+            arguments:
+              parameters:
+                - name: environment
+                  value: "prod"
+            dependencies: [deploy-production]
+          
+          - name: monitoring-setup
+            template: setup-monitoring
+            arguments:
+              parameters:
+                - name: environment
+                  value: "prod"
+            dependencies: [smoke-tests-production]
+          
+          # Notification at the end
+          - name: deployment-complete
+            template: notify-completion
+            arguments:
+              parameters:
+                - name: environment
+                  value: "prod"
+                - name: image-tag
+                  value: "{{workflow.parameters.image-tag}}"
+            dependencies: [monitoring-setup]
+    
+    # Environment deployment template
+    - name: deploy-environment
+      inputs:
+        parameters:
+          - name: environment
+          - name: image-tag
+          - name: deployment-method
+      container:
+        image: alpine/helm:3.12.0
+        command: ["/bin/sh"]
+        args:
+          - -c
+          - |
+            set -e
+            
+            # Install kubectl
+            apk add --no-cache curl
+            curl -LO "https://dl.k8s.io/release/v1.28.0/bin/linux/amd64/kubectl"
+            chmod +x kubectl
+            mv kubectl /usr/local/bin/
+            
+            # Clone repository
+            apk add --no-cache git
+            git clone https://github.com/your-org/apm.git /workspace/apm
+            cd /workspace/apm
+            
+            # Deploy based on method
+            if [ "{{inputs.parameters.deployment-method}}" = "helm" ]; then
+              echo "Deploying with Helm..."
+              chmod +x scripts/deploy-helm.sh
+              ./scripts/deploy-helm.sh \
+                --environment {{inputs.parameters.environment}} \
+                --timeout 900s \
+                --wait
+            else
+              echo "Deploying with Kubernetes manifests..."
+              chmod +x scripts/deploy.sh
+              ./scripts/deploy.sh \
+                --environment {{inputs.parameters.environment}} \
+                --image-tag {{inputs.parameters.image-tag}} \
+                --timeout 900s
+            fi
+            
+            echo "Deployment to {{inputs.parameters.environment}} completed successfully"
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace
+        env:
+          - name: KUBECONFIG
+            value: "/etc/kubeconfig/config"
+        resources:
+          requests:
+            memory: 256Mi
+            cpu: 200m
+          limits:
+            memory: 512Mi
+            cpu: 500m
+    
+    # Approval gate template
+    - name: approval-gate
+      inputs:
+        parameters:
+          - name: environment
+          - name: auto-approve
+      steps:
+        - - name: check-auto-approve
+            template: check-approval
+            arguments:
+              parameters:
+                - name: environment
+                  value: "{{inputs.parameters.environment}}"
+                - name: auto-approve
+                  value: "{{inputs.parameters.auto-approve}}"
+        - - name: manual-approval
+            template: manual-approval
+            arguments:
+              parameters:
+                - name: environment
+                  value: "{{inputs.parameters.environment}}"
+            when: "{{steps.check-auto-approve.outputs.result}} == 'manual'"
+    
+    # Check approval template
+    - name: check-approval
+      inputs:
+        parameters:
+          - name: environment
+          - name: auto-approve
+      script:
+        image: alpine:3.18
+        command: [sh]
+        source: |
+          if [ "{{inputs.parameters.auto-approve}}" = "true" ]; then
+            echo "auto"
+          else
+            echo "manual"
+          fi
+    
+    # Manual approval template
+    - name: manual-approval
+      inputs:
+        parameters:
+          - name: environment
+      suspend: {}
+      container:
+        image: alpine:3.18
+        command: ["/bin/sh"]
+        args:
+          - -c
+          - |
+            echo "Manual approval required for {{inputs.parameters.environment}} deployment"
+            echo "Please review the deployment and approve to continue"
+            
+            # Send Slack notification
+            if [ -n "$SLACK_WEBHOOK_URL" ]; then
+              curl -X POST -H 'Content-type: application/json' \
+                --data '{"text":"🔄 Manual approval required for APM deployment to {{inputs.parameters.environment}}. Please review and approve."}' \
+                $SLACK_WEBHOOK_URL
+            fi
+        env:
+          - name: SLACK_WEBHOOK_URL
+            valueFrom:
+              secretKeyRef:
+                name: slack-webhook
+                key: url
+                optional: true
+    
+    # Smoke tests template
+    - name: smoke-tests
+      inputs:
+        parameters:
+          - name: environment
+      container:
+        image: curlimages/curl:8.1.2
+        command: ["/bin/sh"]
+        args:
+          - -c
+          - |
+            set -e
+            
+            NAMESPACE="apm-system-{{inputs.parameters.environment}}"
+            if [ "{{inputs.parameters.environment}}" = "dev" ]; then
+              NAMESPACE="apm-system"
+            fi
+            
+            echo "Running smoke tests for {{inputs.parameters.environment}} environment..."
+            
+            # Install kubectl
+            apk add --no-cache curl
+            curl -LO "https://dl.k8s.io/release/v1.28.0/bin/linux/amd64/kubectl"
+            chmod +x kubectl
+            mv kubectl /usr/local/bin/
+            
+            # Test Prometheus
+            echo "Testing Prometheus..."
+            kubectl port-forward -n $NAMESPACE svc/prometheus 9090:9090 &
+            PF_PID=$!
+            sleep 5
+            curl -f http://localhost:9090/-/healthy || exit 1
+            kill $PF_PID
+            
+            # Test Grafana
+            echo "Testing Grafana..."
+            kubectl port-forward -n $NAMESPACE svc/grafana 3000:3000 &
+            PF_PID=$!
+            sleep 5
+            curl -f http://localhost:3000/api/health || exit 1
+            kill $PF_PID
+            
+            # Test Loki
+            echo "Testing Loki..."
+            kubectl port-forward -n $NAMESPACE svc/loki 3100:3100 &
+            PF_PID=$!
+            sleep 5
+            curl -f http://localhost:3100/ready || exit 1
+            kill $PF_PID
+            
+            echo "Smoke tests passed for {{inputs.parameters.environment}}"
+        env:
+          - name: KUBECONFIG
+            value: "/etc/kubeconfig/config"
+        resources:
+          requests:
+            memory: 128Mi
+            cpu: 100m
+          limits:
+            memory: 256Mi
+            cpu: 200m
+    
+    # Integration tests template
+    - name: integration-tests
+      inputs:
+        parameters:
+          - name: environment
+      container:
+        image: golang:1.21-alpine
+        command: ["/bin/sh"]
+        args:
+          - -c
+          - |
+            set -e
+            
+            echo "Running integration tests for {{inputs.parameters.environment}} environment..."
+            
+            # Install required tools
+            apk add --no-cache curl git
+            
+            # Clone repository
+            git clone https://github.com/your-org/apm.git /workspace/apm
+            cd /workspace/apm
+            
+            # Run integration tests
+            go mod tidy
+            go test -v ./tests/integration/... -tags=integration
+            
+            echo "Integration tests passed for {{inputs.parameters.environment}}"
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace
+        resources:
+          requests:
+            memory: 512Mi
+            cpu: 300m
+          limits:
+            memory: 1Gi
+            cpu: 500m
+    
+    # Monitoring setup template
+    - name: setup-monitoring
+      inputs:
+        parameters:
+          - name: environment
+      container:
+        image: alpine/helm:3.12.0
+        command: ["/bin/sh"]
+        args:
+          - -c
+          - |
+            set -e
+            
+            echo "Setting up monitoring for {{inputs.parameters.environment}} environment..."
+            
+            # Install kubectl
+            apk add --no-cache curl
+            curl -LO "https://dl.k8s.io/release/v1.28.0/bin/linux/amd64/kubectl"
+            chmod +x kubectl
+            mv kubectl /usr/local/bin/
+            
+            NAMESPACE="apm-system-{{inputs.parameters.environment}}"
+            if [ "{{inputs.parameters.environment}}" = "dev" ]; then
+              NAMESPACE="apm-system"
+            fi
+            
+            # Create ServiceMonitor for Prometheus
+            cat <<EOF | kubectl apply -f -
+            apiVersion: monitoring.coreos.com/v1
+            kind: ServiceMonitor
+            metadata:
+              name: apm-stack-monitor
+              namespace: $NAMESPACE
+            spec:
+              selector:
+                matchLabels:
+                  app.kubernetes.io/part-of: apm-stack
+              endpoints:
+              - port: metrics
+                interval: 30s
+                path: /metrics
+            EOF
+            
+            # Create basic alerts
+            cat <<EOF | kubectl apply -f -
+            apiVersion: monitoring.coreos.com/v1
+            kind: PrometheusRule
+            metadata:
+              name: apm-stack-alerts
+              namespace: $NAMESPACE
+            spec:
+              groups:
+              - name: apm-stack
+                rules:
+                - alert: APMStackDown
+                  expr: up{job="apm-stack"} == 0
+                  for: 5m
+                  labels:
+                    severity: critical
+                  annotations:
+                    summary: "APM Stack is down"
+                    description: "APM Stack has been down for more than 5 minutes"
+            EOF
+            
+            echo "Monitoring setup completed for {{inputs.parameters.environment}}"
+        env:
+          - name: KUBECONFIG
+            value: "/etc/kubeconfig/config"
+        resources:
+          requests:
+            memory: 128Mi
+            cpu: 100m
+          limits:
+            memory: 256Mi
+            cpu: 200m
+    
+    # Notification template
+    - name: notify-completion
+      inputs:
+        parameters:
+          - name: environment
+          - name: image-tag
+      container:
+        image: curlimages/curl:8.1.2
+        command: ["/bin/sh"]
+        args:
+          - -c
+          - |
+            echo "Deployment pipeline completed successfully!"
+            echo "Environment: {{inputs.parameters.environment}}"
+            echo "Image Tag: {{inputs.parameters.image-tag}}"
+            
+            # Send Slack notification
+            if [ -n "$SLACK_WEBHOOK_URL" ]; then
+              curl -X POST -H 'Content-type: application/json' \
+                --data '{
+                  "text": "✅ APM Stack deployment completed successfully!",
+                  "attachments": [
+                    {
+                      "color": "good",
+                      "fields": [
+                        {
+                          "title": "Environment",
+                          "value": "{{inputs.parameters.environment}}",
+                          "short": true
+                        },
+                        {
+                          "title": "Image Tag",
+                          "value": "{{inputs.parameters.image-tag}}",
+                          "short": true
+                        }
+                      ]
+                    }
+                  ]
+                }' \
+                $SLACK_WEBHOOK_URL
+            fi
+            
+            # Send email notification (if configured)
+            if [ -n "$EMAIL_WEBHOOK_URL" ]; then
+              curl -X POST -H 'Content-type: application/json' \
+                --data '{
+                  "to": "devops@company.com",
+                  "subject": "APM Stack Deployment Completed",
+                  "body": "APM Stack has been successfully deployed to {{inputs.parameters.environment}} with image tag {{inputs.parameters.image-tag}}"
+                }' \
+                $EMAIL_WEBHOOK_URL
+            fi
+        env:
+          - name: SLACK_WEBHOOK_URL
+            valueFrom:
+              secretKeyRef:
+                name: slack-webhook
+                key: url
+                optional: true
+          - name: EMAIL_WEBHOOK_URL
+            valueFrom:
+              secretKeyRef:
+                name: email-webhook
+                key: url
+                optional: true
+        resources:
+          requests:
+            memory: 64Mi
+            cpu: 50m
+          limits:
+            memory: 128Mi
+            cpu: 100m
+
+---
+# ServiceAccount for deployment pipeline
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: apm-deploy-sa
+  namespace: apm-system
+
+---
+# ClusterRole for deployment pipeline
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: apm-deploy-role
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services", "configmaps", "secrets", "namespaces"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["monitoring.coreos.com"]
+    resources: ["servicemonitors", "prometheusrules"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+---
+# ClusterRoleBinding for deployment pipeline
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: apm-deploy-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: apm-deploy-role
+subjects:
+  - kind: ServiceAccount
+    name: apm-deploy-sa
+    namespace: apm-system

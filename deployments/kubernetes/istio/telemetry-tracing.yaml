@@ -1,0 +1,126 @@
+# Istio Telemetry v2 Configuration for Distributed Tracing
+# This configuration enables distributed tracing with configurable sampling
+apiVersion: telemetry.istio.io/v1alpha1
+kind: Telemetry
+metadata:
+  name: default-tracing
+  namespace: istio-system
+spec:
+  # Apply to all workloads in the mesh
+  tracing:
+  - providers:
+    - name: jaeger-tracing
+    # 100% sampling rate for development environment
+    # IMPORTANT: Reduce this value in production to avoid performance impact
+    randomSamplingPercentage: 100.0
+    # Custom tags to add to all spans
+    customTags:
+      environment:
+        literal:
+          value: "development"
+      cluster:
+        literal:
+          value: "primary"
+      namespace:
+        environment:
+          name: POD_NAMESPACE
+      pod_name:
+        environment:
+          name: POD_NAME
+      pod_ip:
+        environment:
+          name: POD_IP
+---
+# Jaeger tracing provider configuration
+# This should be added to the Istio mesh config
+apiVersion: v1
+data:
+  mesh: |
+    defaultProviders:
+      tracing:
+      - jaeger-tracing
+    extensionProviders:
+    - name: jaeger-tracing
+      envoyOtelAls:
+        service: jaeger-collector.default.svc.cluster.local
+        port: 4317
+        # Use OTLP protocol for better compatibility
+        protocol: GRPC
+    - name: jaeger-zipkin
+      zipkin:
+        service: jaeger-collector.default.svc.cluster.local
+        port: 9411
+        maxTagLength: 256
+    # Global tracing configuration
+    defaultConfig:
+      tracing:
+        # Default sampling rate (can be overridden by Telemetry resources)
+        sampling: 100.0
+        # Maximum path tag length
+        maxPathTagLength: 256
+        # Custom tags added to all traces
+        customTags:
+          # Add HTTP headers to traces
+          http.user_agent:
+            header:
+              name: user-agent
+          http.request_id:
+            header:
+              name: x-request-id
+          # Add environment variables
+          node_id:
+            environment:
+              name: NODE_NAME
+kind: ConfigMap
+metadata:
+  name: istio-mesh-tracing-config
+  namespace: istio-system
+---
+# Per-namespace tracing configuration with different sampling rates
+# Uncomment and modify for production namespaces
+# apiVersion: telemetry.istio.io/v1alpha1
+# kind: Telemetry
+# metadata:
+#   name: production-tracing
+#   namespace: production
+# spec:
+#   tracing:
+#   - providers:
+#     - name: jaeger-tracing
+#     # Lower sampling rate for production (1%)
+#     randomSamplingPercentage: 1.0
+---
+# Selective tracing configuration example
+# Uncomment to trace only specific services or paths
+# apiVersion: telemetry.istio.io/v1alpha1
+# kind: Telemetry
+# metadata:
+#   name: selective-tracing
+#   namespace: default
+# spec:
+#   selector:
+#     matchLabels:
+#       app: critical-service
+#   tracing:
+#   - providers:
+#     - name: jaeger-tracing
+#     # Higher sampling for critical services
+#     randomSamplingPercentage: 50.0
+---
+# Disable tracing for specific paths example
+# apiVersion: telemetry.istio.io/v1alpha1
+# kind: Telemetry
+# metadata:
+#   name: disable-health-tracing
+#   namespace: istio-system
+# spec:
+#   tracing:
+#   - providers:
+#     - name: jaeger-tracing
+#     match:
+#       # Disable tracing for health check endpoints
+#       - headers:
+#           request:
+#             ":path":
+#               regex: "^/(health|ready|live).*"
+#     disabled: true

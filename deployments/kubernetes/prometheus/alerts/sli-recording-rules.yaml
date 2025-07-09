@@ -1,0 +1,244 @@
+groups:
+  - name: sli_recording_rules
+    interval: 30s
+    rules:
+      # Request Rate Recording Rules
+      - record: sli:service_request_rate:qps
+        expr: |
+          sum by (service, namespace, method, route) (
+            rate(http_requests_total[1m])
+          )
+        labels:
+          sli_type: "request_rate"
+
+      - record: sli:service_request_rate:qps_5m
+        expr: |
+          sum by (service, namespace, method, route) (
+            rate(http_requests_total[5m])
+          )
+        labels:
+          sli_type: "request_rate"
+
+      - record: sli:service_request_rate:total
+        expr: |
+          sum by (service, namespace) (
+            increase(http_requests_total[1h])
+          )
+        labels:
+          sli_type: "request_rate"
+
+      # Error Rate Recording Rules
+      - record: sli:service_error_rate:ratio_1m
+        expr: |
+          sum by (service, namespace, method, route) (
+            rate(http_requests_total{status=~"5.."}[1m])
+          ) / 
+          sum by (service, namespace, method, route) (
+            rate(http_requests_total[1m])
+          )
+        labels:
+          sli_type: "error_rate"
+
+      - record: sli:service_error_rate:ratio_5m
+        expr: |
+          sum by (service, namespace, method, route) (
+            rate(http_requests_total{status=~"5.."}[5m])
+          ) / 
+          sum by (service, namespace, method, route) (
+            rate(http_requests_total[5m])
+          )
+        labels:
+          sli_type: "error_rate"
+
+      - record: sli:service_error_rate:ratio_1h
+        expr: |
+          sum by (service, namespace) (
+            rate(http_requests_total{status=~"5.."}[1h])
+          ) / 
+          sum by (service, namespace) (
+            rate(http_requests_total[1h])
+          )
+        labels:
+          sli_type: "error_rate"
+
+      # Success Rate Recording Rules (for availability SLI)
+      - record: sli:service_availability:ratio_1m
+        expr: |
+          sum by (service, namespace, method, route) (
+            rate(http_requests_total{status!~"5.."}[1m])
+          ) / 
+          sum by (service, namespace, method, route) (
+            rate(http_requests_total[1m])
+          )
+        labels:
+          sli_type: "availability"
+
+      - record: sli:service_availability:ratio_5m
+        expr: |
+          sum by (service, namespace, method, route) (
+            rate(http_requests_total{status!~"5.."}[5m])
+          ) / 
+          sum by (service, namespace, method, route) (
+            rate(http_requests_total[5m])
+          )
+        labels:
+          sli_type: "availability"
+
+      - record: sli:service_availability:ratio_1h
+        expr: |
+          sum by (service, namespace) (
+            rate(http_requests_total{status!~"5.."}[1h])
+          ) / 
+          sum by (service, namespace) (
+            rate(http_requests_total[1h])
+          )
+        labels:
+          sli_type: "availability"
+
+      # Latency Percentile Recording Rules
+      - record: sli:service_latency_p50:seconds
+        expr: |
+          histogram_quantile(0.50,
+            sum by (service, namespace, method, route, le) (
+              rate(http_request_duration_seconds_bucket[5m])
+            )
+          )
+        labels:
+          sli_type: "latency"
+          percentile: "50"
+
+      - record: sli:service_latency_p75:seconds
+        expr: |
+          histogram_quantile(0.75,
+            sum by (service, namespace, method, route, le) (
+              rate(http_request_duration_seconds_bucket[5m])
+            )
+          )
+        labels:
+          sli_type: "latency"
+          percentile: "75"
+
+      - record: sli:service_latency_p90:seconds
+        expr: |
+          histogram_quantile(0.90,
+            sum by (service, namespace, method, route, le) (
+              rate(http_request_duration_seconds_bucket[5m])
+            )
+          )
+        labels:
+          sli_type: "latency"
+          percentile: "90"
+
+      - record: sli:service_latency_p95:seconds
+        expr: |
+          histogram_quantile(0.95,
+            sum by (service, namespace, method, route, le) (
+              rate(http_request_duration_seconds_bucket[5m])
+            )
+          )
+        labels:
+          sli_type: "latency"
+          percentile: "95"
+
+      - record: sli:service_latency_p99:seconds
+        expr: |
+          histogram_quantile(0.99,
+            sum by (service, namespace, method, route, le) (
+              rate(http_request_duration_seconds_bucket[5m])
+            )
+          )
+        labels:
+          sli_type: "latency"
+          percentile: "99"
+
+      # Aggregated Latency Recording Rules (for dashboards)
+      - record: sli:service_latency_p95:seconds_1h
+        expr: |
+          histogram_quantile(0.95,
+            sum by (service, namespace, le) (
+              rate(http_request_duration_seconds_bucket[1h])
+            )
+          )
+        labels:
+          sli_type: "latency"
+          percentile: "95"
+          window: "1h"
+
+      - record: sli:service_latency_p99:seconds_1h
+        expr: |
+          histogram_quantile(0.99,
+            sum by (service, namespace, le) (
+              rate(http_request_duration_seconds_bucket[1h])
+            )
+          )
+        labels:
+          sli_type: "latency"
+          percentile: "99"
+          window: "1h"
+
+      # Error Budget Recording Rules
+      - record: sli:error_budget:consumed_ratio
+        expr: |
+          (
+            1 - sli:service_availability:ratio_5m
+          ) / 0.001  # Assuming 99.9% SLO
+        labels:
+          sli_type: "error_budget"
+          slo_target: "99.9"
+
+      - record: sli:error_budget:remaining_ratio
+        expr: |
+          1 - sli:error_budget:consumed_ratio
+        labels:
+          sli_type: "error_budget"
+          slo_target: "99.9"
+
+      # Multi-window Error Rates (for multi-burn-rate alerts)
+      - record: sli:service_error_rate:5m
+        expr: |
+          1 - (
+            sum by (service, namespace) (rate(http_requests_total{status!~"5.."}[5m])) /
+            sum by (service, namespace) (rate(http_requests_total[5m]))
+          )
+
+      - record: sli:service_error_rate:30m
+        expr: |
+          1 - (
+            sum by (service, namespace) (rate(http_requests_total{status!~"5.."}[30m])) /
+            sum by (service, namespace) (rate(http_requests_total[30m]))
+          )
+
+      - record: sli:service_error_rate:1h
+        expr: |
+          1 - (
+            sum by (service, namespace) (rate(http_requests_total{status!~"5.."}[1h])) /
+            sum by (service, namespace) (rate(http_requests_total[1h]))
+          )
+
+      - record: sli:service_error_rate:2h
+        expr: |
+          1 - (
+            sum by (service, namespace) (rate(http_requests_total{status!~"5.."}[2h])) /
+            sum by (service, namespace) (rate(http_requests_total[2h]))
+          )
+
+      - record: sli:service_error_rate:6h
+        expr: |
+          1 - (
+            sum by (service, namespace) (rate(http_requests_total{status!~"5.."}[6h])) /
+            sum by (service, namespace) (rate(http_requests_total[6h]))
+          )
+
+      - record: sli:service_error_rate:1d
+        expr: |
+          1 - (
+            sum by (service, namespace) (rate(http_requests_total{status!~"5.."}[1d])) /
+            sum by (service, namespace) (rate(http_requests_total[1d]))
+          )
+
+      - record: sli:service_error_rate:3d
+        expr: |
+          1 - (
+            sum by (service, namespace) (rate(http_requests_total{status!~"5.."}[3d])) /
+            sum by (service, namespace) (rate(http_requests_total[3d]))
+          )

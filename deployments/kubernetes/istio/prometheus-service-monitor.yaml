@@ -1,0 +1,66 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: istio-control-plane
+  namespace: istio-system
+  labels:
+    app: istio
+spec:
+  selector:
+    matchLabels:
+      app: istiod
+  endpoints:
+  - port: http-monitoring
+    interval: 30s
+    path: /stats/prometheus
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: istio-proxy-metrics
+  namespace: istio-system
+  labels:
+    app: istio-proxy
+spec:
+  namespaceSelector:
+    any: true
+  selector:
+    matchLabels:
+      # Matches services with istio sidecar
+      security.istio.io/tlsMode: istio
+  endpoints:
+  - targetPort: 15090
+    path: /stats/prometheus
+    interval: 30s
+    relabelings:
+    - sourceLabels: [__meta_kubernetes_pod_container_name]
+      action: keep
+      regex: istio-proxy
+    - sourceLabels: [__meta_kubernetes_pod_name]
+      action: replace
+      targetLabel: pod_name
+    - sourceLabels: [__meta_kubernetes_namespace]
+      action: replace
+      targetLabel: namespace
+    - sourceLabels: [__meta_kubernetes_pod_label_app]
+      action: replace
+      targetLabel: app
+    - sourceLabels: [__meta_kubernetes_pod_label_version]
+      action: replace
+      targetLabel: version
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: istio-telemetry
+  namespace: istio-system
+  labels:
+    app: istio-telemetry
+spec:
+  selector:
+    matchLabels:
+      istio: telemetry
+  endpoints:
+  - port: prometheus
+    interval: 30s
+    path: /metrics

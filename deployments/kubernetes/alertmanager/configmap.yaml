@@ -1,0 +1,27 @@
+# This is a simplified ConfigMap that references the main configuration
+# The full configuration is now in alertmanager-config.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-config
+  namespace: monitoring
+data:
+  # Note: The actual AlertManager configuration is now in alertmanager-config.yaml
+  # This file is kept for backward compatibility or can be removed if not needed
+  # 
+  # To use the new configuration:
+  # 1. Apply alertmanager-config.yaml
+  # 2. Apply notification-templates.yaml
+  # 3. Create secrets using secrets.yaml as template
+  # 4. Update the AlertManager deployment to mount these ConfigMaps and Secrets
+  
+  alertmanager.yml: |
+    # Placeholder - see alertmanager-config.yaml for full configuration
+    global:
+      resolve_timeout: 5m
+    
+    route:
+      receiver: 'default'
+    
+    receivers:
+    - name: 'default'

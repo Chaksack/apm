@@ -1,0 +1,186 @@
+# AlertManager Inhibition Rules Configuration
+# Inhibition rules prevent certain alerts from firing when other alerts are active
+# This helps reduce alert noise and focuses on root causes
+
+# Inhibition rules mute alerts (target) when other alerts (source) are firing
+inhibit_rules:
+  # When a cluster is down, inhibit all other alerts from that cluster
+  - source_matchers:
+      - alertname = ClusterDown
+    target_matchers:
+      - alertname != ClusterDown
+    equal: ['cluster']
+
+  # When a node is down, inhibit all alerts from that specific node
+  - source_matchers:
+      - alertname = NodeDown
+    target_matchers:
+      - alertname != NodeDown
+    equal: ['instance', 'node']
+
+  # When database master is down, inhibit replica alerts
+  - source_matchers:
+      - alertname = DatabaseMasterDown
+      - severity = critical
+    target_matchers:
+      - alertname =~ "DatabaseReplica.*"
+    equal: ['database_cluster', 'environment']
+
+  # When entire service is down, inhibit component-specific alerts
+  - source_matchers:
+      - alertname = ServiceDown
+      - severity = critical
+    target_matchers:
+      - alertname =~ "ServiceEndpoint.*|ServiceHealthCheck.*"
+    equal: ['service', 'environment']
+
+  # Network partition inhibits service communication alerts
+  - source_matchers:
+      - alertname = NetworkPartition
+    target_matchers:
+      - alertname =~ "ServiceCommunication.*|APITimeout.*"
+    equal: ['datacenter', 'network_zone']
+
+  # During maintenance windows, inhibit non-critical alerts
+  - source_matchers:
+      - alertname = MaintenanceWindow
+      - active = true
+    target_matchers:
+      - severity != critical
+    equal: ['service', 'environment']
+
+  # Kubernetes control plane issues inhibit pod-level alerts
+  - source_matchers:
+      - alertname =~ "KubeAPIDown|KubeControllerManagerDown|KubeSchedulerDown"
+    target_matchers:
+      - alertname =~ "KubePod.*|KubeDeployment.*"
+    equal: ['cluster']
+
+  # When storage system is down, inhibit disk space alerts
+  - source_matchers:
+      - alertname = StorageSystemDown
+      - severity = critical
+    target_matchers:
+      - alertname =~ "DiskSpace.*|VolumeSpace.*"
+    equal: ['storage_cluster', 'datacenter']
+
+  # Critical alerts inhibit warnings for the same component
+  - source_matchers:
+      - severity = critical
+    target_matchers:
+      - severity = warning
+    equal: ['alertname', 'instance', 'service']
+
+  # Infrastructure provider issues inhibit service alerts
+  - source_matchers:
+      - alertname =~ "AWSOutage|GCPOutage|AzureOutage"
+    target_matchers:
+      - alertname !~ "AWSOutage|GCPOutage|AzureOutage"
+    equal: ['region', 'provider']
+
+  # Load balancer down inhibits backend instance alerts
+  - source_matchers:
+      - alertname = LoadBalancerDown
+    target_matchers:
+      - alertname =~ "BackendUnhealthy|BackendTimeout"
+    equal: ['load_balancer', 'service']
+
+  # Certificate expiry critical inhibits certificate expiry warnings
+  - source_matchers:
+      - alertname = CertificateExpiryCritical
+    target_matchers:
+      - alertname = CertificateExpiryWarning
+    equal: ['domain', 'certificate_cn']
+
+  # Deployment in progress inhibits service stability alerts
+  - source_matchers:
+      - alertname = DeploymentInProgress
+    target_matchers:
+      - alertname =~ "ServiceInstability|HighErrorRate|HighLatency"
+      - severity != critical
+    equal: ['service', 'environment', 'namespace']
+
+  # Data pipeline failure inhibits downstream processing alerts
+  - source_matchers:
+      - alertname = DataPipelineFailure
+      - component = upstream
+    target_matchers:
+      - alertname =~ "DataProcessing.*|DataQuality.*"
+      - component = downstream
+    equal: ['pipeline', 'environment']
+
+  # Backup system failure inhibits backup completion alerts
+  - source_matchers:
+      - alertname = BackupSystemFailure
+    target_matchers:
+      - alertname =~ "BackupNotCompleted|BackupDelayed"
+    equal: ['backup_system', 'datacenter']
+
+  # Security incident inhibits normal operational alerts
+  - source_matchers:
+      - alertname = SecurityIncident
+      - severity = critical
+    target_matchers:
+      - team != security
+      - severity != critical
+    equal: ['service', 'environment']
+
+  # Cascading failure prevention
+  - source_matchers:
+      - alertname = CascadingFailure
+      - severity = critical
+    target_matchers:
+      - alertname != CascadingFailure
+      - severity != critical
+    equal: ['failure_domain', 'environment']
+
+  # Development environment inhibitions
+  - source_matchers:
+      - environment = development
+      - alertname = DevelopmentFreeze
+    target_matchers:
+      - environment = development
+      - severity != critical
+    equal: ['environment']
+
+  # Resource exhaustion inhibits performance alerts
+  - source_matchers:
+      - alertname =~ "MemoryExhausted|CPUThrottling"
+      - severity = critical
+    target_matchers:
+      - alertname =~ "HighLatency|SlowQueries|PerformanceDegraded"
+    equal: ['instance', 'service']
+
+  # Platform-wide issues inhibit service-specific alerts
+  - source_matchers:
+      - alertname = PlatformOutage
+      - scope = platform-wide
+    target_matchers:
+      - scope != platform-wide
+      - severity != critical
+    equal: ['datacenter', 'environment']
+
+# Special inhibition rules for planned maintenance
+maintenance_inhibitions:
+  # Database maintenance window
+  - source_matchers:
+      - alertname = DatabaseMaintenanceActive
+    target_matchers:
+      - alertname =~ "Database.*"
+      - severity != critical
+    equal: ['database_cluster']
+  
+  # Infrastructure maintenance window
+  - source_matchers:
+      - alertname = InfrastructureMaintenanceActive
+    target_matchers:
+      - severity = warning
+    equal: ['datacenter', 'maintenance_zone']
+  
+  # Application deployment window
+  - source_matchers:
+      - alertname = DeploymentWindowActive
+    target_matchers:
+      - alertname =~ "ServiceHealthCheck.*|EndpointDown"
+      - severity != critical
+    equal: ['service', 'environment', 'deployment_group']

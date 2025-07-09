@@ -1,0 +1,181 @@
+# ArgoCD Application Definition for APM Stack
+# This defines the main APM application with proper sync policies and health checks
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: apm-stack
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: apm-project
+  source:
+    repoURL: https://github.com/your-org/apm
+    targetRevision: HEAD
+    path: deployments/k8s
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-production.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: apm
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+      - RespectIgnoreDifferences=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  # Health check configuration
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+    - group: ""
+      kind: Service
+      jsonPointers:
+        - /spec/clusterIP
+  # Custom health checks
+  health:
+    - group: ""
+      kind: Service
+      check: |
+        hs = {}
+        if obj.spec.type == "ClusterIP" and obj.spec.clusterIP == "None" then
+          hs.status = "Healthy"
+          hs.message = "Headless service"
+        else
+          hs.status = "Healthy"
+          hs.message = "Service is ready"
+        end
+        return hs
+    - group: apps
+      kind: Deployment
+      check: |
+        hs = {}
+        if obj.status ~= nil then
+          if obj.status.updatedReplicas == obj.spec.replicas and
+             obj.status.replicas == obj.spec.replicas and
+             obj.status.availableReplicas == obj.spec.replicas and
+             obj.status.observedGeneration >= obj.metadata.generation then
+            hs.status = "Healthy"
+            hs.message = "Deployment is healthy"
+          else
+            hs.status = "Progressing"
+            hs.message = "Deployment is progressing"
+          end
+        else
+          hs.status = "Progressing"
+          hs.message = "Deployment is starting"
+        end
+        return hs
+  # Notification configuration
+  notifications:
+    - name: slack-notifications
+      enabled: true
+      triggers:
+        - on-sync-succeeded
+        - on-sync-failed
+        - on-health-degraded
+      destination: slack
+      template: |
+        Application {{.app.metadata.name}} sync {{.app.status.sync.status}}
+        Repository: {{.app.spec.source.repoURL}}
+        Revision: {{.app.status.sync.revision}}
+        Environment: {{.app.metadata.labels.environment}}
+    - name: email-notifications
+      enabled: true
+      triggers:
+        - on-sync-failed
+        - on-health-degraded
+      destination: email
+      template: |
+        APM Application Alert
+        Application: {{.app.metadata.name}}
+        Status: {{.app.status.sync.status}}
+        Health: {{.app.status.health.status}}
+        Message: {{.app.status.conditions[0].message}}
+---
+# ArgoCD Application for monitoring components
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: apm-monitoring
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: apm-project
+  source:
+    repoURL: https://github.com/your-org/apm
+    targetRevision: HEAD
+    path: deployments/monitoring
+    helm:
+      valueFiles:
+        - values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: apm-monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+    retry:
+      limit: 3
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  # Sync wave for dependency management
+  syncWave: -1
+---
+# ArgoCD Application for infrastructure components
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: apm-infra
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: apm-project
+  source:
+    repoURL: https://github.com/your-org/apm
+    targetRevision: HEAD
+    path: deployments/infrastructure
+    helm:
+      valueFiles:
+        - values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: apm-infra
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+    retry:
+      limit: 3
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  # Sync wave for dependency management - deploy before main app
+  syncWave: -2

@@ -1,0 +1,367 @@
+# Jaeger Production Deployment Configuration
+# This configuration separates collector, query, and agent deployments
+# with support for multiple storage backends
+
+# Default namespace for Jaeger components
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: jaeger
+---
+# Jaeger Collector Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jaeger-collector
+  namespace: jaeger
+  labels:
+    app: jaeger
+    component: collector
+spec:
+  replicas: 3  # Scale based on load
+  selector:
+    matchLabels:
+      app: jaeger
+      component: collector
+  template:
+    metadata:
+      labels:
+        app: jaeger
+        component: collector
+    spec:
+      containers:
+      - name: jaeger-collector
+        image: jaegertracing/jaeger-collector:1.48
+        env:
+        # Memory storage (default for development)
+        - name: SPAN_STORAGE_TYPE
+          value: memory
+        
+        # Elasticsearch storage configuration (uncomment for production)
+        # - name: SPAN_STORAGE_TYPE
+        #   value: elasticsearch
+        # - name: ES_SERVER_URLS
+        #   value: http://elasticsearch:9200
+        # - name: ES_USERNAME
+        #   value: elastic
+        # - name: ES_PASSWORD
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: jaeger-es-secret
+        #       key: password
+        # - name: ES_INDEX_PREFIX
+        #   value: jaeger
+        # - name: ES_NUM_SHARDS
+        #   value: "5"
+        # - name: ES_NUM_REPLICAS
+        #   value: "1"
+        
+        # Cassandra storage configuration (uncomment for production)
+        # - name: SPAN_STORAGE_TYPE
+        #   value: cassandra
+        # - name: CASSANDRA_SERVERS
+        #   value: cassandra
+        # - name: CASSANDRA_KEYSPACE
+        #   value: jaeger_v1_production
+        # - name: CASSANDRA_USERNAME
+        #   value: cassandra
+        # - name: CASSANDRA_PASSWORD
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: jaeger-cassandra-secret
+        #       key: password
+        
+        # Collector specific settings
+        - name: COLLECTOR_ZIPKIN_HOST_PORT
+          value: ":9411"
+        - name: COLLECTOR_OTLP_ENABLED
+          value: "true"
+        - name: COLLECTOR_NUM_WORKERS
+          value: "100"
+        - name: COLLECTOR_QUEUE_SIZE
+          value: "2000"
+        ports:
+        - containerPort: 14268  # Jaeger HTTP collector
+          name: http
+          protocol: TCP
+        - containerPort: 14250  # gRPC collector
+          name: grpc
+          protocol: TCP
+        - containerPort: 9411   # Zipkin compatible endpoint
+          name: zipkin
+          protocol: TCP
+        - containerPort: 4317   # OTLP gRPC
+          name: otlp-grpc
+          protocol: TCP
+        - containerPort: 4318   # OTLP HTTP
+          name: otlp-http
+          protocol: TCP
+        - containerPort: 14269  # Admin port for health check
+          name: admin
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 14269
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 14269
+          initialDelaySeconds: 15
+          periodSeconds: 30
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+---
+# Jaeger Query Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jaeger-query
+  namespace: jaeger
+  labels:
+    app: jaeger
+    component: query
+spec:
+  replicas: 2  # Scale based on UI usage
+  selector:
+    matchLabels:
+      app: jaeger
+      component: query
+  template:
+    metadata:
+      labels:
+        app: jaeger
+        component: query
+    spec:
+      containers:
+      - name: jaeger-query
+        image: jaegertracing/jaeger-query:1.48
+        env:
+        # Memory storage (default for development)
+        - name: SPAN_STORAGE_TYPE
+          value: memory
+        
+        # Elasticsearch storage configuration (uncomment for production)
+        # - name: SPAN_STORAGE_TYPE
+        #   value: elasticsearch
+        # - name: ES_SERVER_URLS
+        #   value: http://elasticsearch:9200
+        # - name: ES_USERNAME
+        #   value: elastic
+        # - name: ES_PASSWORD
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: jaeger-es-secret
+        #       key: password
+        # - name: ES_INDEX_PREFIX
+        #   value: jaeger
+        
+        # Cassandra storage configuration (uncomment for production)
+        # - name: SPAN_STORAGE_TYPE
+        #   value: cassandra
+        # - name: CASSANDRA_SERVERS
+        #   value: cassandra
+        # - name: CASSANDRA_KEYSPACE
+        #   value: jaeger_v1_production
+        # - name: CASSANDRA_USERNAME
+        #   value: cassandra
+        # - name: CASSANDRA_PASSWORD
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: jaeger-cassandra-secret
+        #       key: password
+        
+        # Query specific settings
+        - name: QUERY_BASE_PATH
+          value: /jaeger
+        - name: QUERY_MAX_CLOCK_SKEW_ADJUSTMENT
+          value: "30s"
+        ports:
+        - containerPort: 16686  # Query HTTP UI
+          name: http
+          protocol: TCP
+        - containerPort: 16687  # Query health check
+          name: admin
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 16687
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 16687
+          initialDelaySeconds: 15
+          periodSeconds: 30
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+---
+# Jaeger Agent DaemonSet
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: jaeger-agent
+  namespace: jaeger
+  labels:
+    app: jaeger
+    component: agent
+spec:
+  selector:
+    matchLabels:
+      app: jaeger
+      component: agent
+  template:
+    metadata:
+      labels:
+        app: jaeger
+        component: agent
+    spec:
+      hostNetwork: true  # Use host network for better performance
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+      - name: jaeger-agent
+        image: jaegertracing/jaeger-agent:1.48
+        env:
+        - name: REPORTER_GRPC_HOST_PORT
+          value: "jaeger-collector.jaeger.svc.cluster.local:14250"
+        - name: PROCESSOR_JAEGER_COMPACT_SERVER_QUEUE_SIZE
+          value: "1000"
+        - name: PROCESSOR_JAEGER_BINARY_SERVER_QUEUE_SIZE
+          value: "1000"
+        ports:
+        - containerPort: 5775   # UDP accept zipkin.thrift
+          protocol: UDP
+          name: zk-compact-trft
+        - containerPort: 6831   # UDP accept jaeger.thrift
+          protocol: UDP
+          name: jg-compact-trft
+        - containerPort: 6832   # UDP accept jaeger.thrift binary
+          protocol: UDP
+          name: jg-binary-trft
+        - containerPort: 5778   # HTTP serve configs
+          protocol: TCP
+          name: config-rest
+        - containerPort: 14271  # HTTP admin port
+          protocol: TCP
+          name: admin
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 14271
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 14271
+          initialDelaySeconds: 15
+          periodSeconds: 30
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+---
+# Collector Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger-collector
+  namespace: jaeger
+  labels:
+    app: jaeger
+    component: collector
+spec:
+  selector:
+    app: jaeger
+    component: collector
+  ports:
+  - port: 14268
+    targetPort: 14268
+    protocol: TCP
+    name: http
+  - port: 14250
+    targetPort: 14250
+    protocol: TCP
+    name: grpc
+  - port: 9411
+    targetPort: 9411
+    protocol: TCP
+    name: zipkin
+  - port: 4317
+    targetPort: 4317
+    protocol: TCP
+    name: otlp-grpc
+  - port: 4318
+    targetPort: 4318
+    protocol: TCP
+    name: otlp-http
+  type: ClusterIP
+---
+# Query Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger-query
+  namespace: jaeger
+  labels:
+    app: jaeger
+    component: query
+spec:
+  selector:
+    app: jaeger
+    component: query
+  ports:
+  - port: 16686
+    targetPort: 16686
+    protocol: TCP
+    name: http
+  type: ClusterIP
+---
+# Agent Service (headless for host network)
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger-agent
+  namespace: jaeger
+  labels:
+    app: jaeger
+    component: agent
+spec:
+  selector:
+    app: jaeger
+    component: agent
+  clusterIP: None
+  ports:
+  - port: 5775
+    targetPort: 5775
+    protocol: UDP
+    name: zk-compact-trft
+  - port: 6831
+    targetPort: 6831
+    protocol: UDP
+    name: jg-compact-trft
+  - port: 6832
+    targetPort: 6832
+    protocol: UDP
+    name: jg-binary-trft
+  - port: 5778
+    targetPort: 5778
+    protocol: TCP
+    name: config-rest

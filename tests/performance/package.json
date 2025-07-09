@@ -1,0 +1,27 @@
+{
+  "name": "monitoring-stack-performance-tests",
+  "version": "1.0.0",
+  "description": "Performance tests for monitoring stack components",
+  "main": "prometheus-performance.js",
+  "scripts": {
+    "test": "node prometheus-performance.js",
+    "test:prometheus": "node prometheus-performance.js",
+    "test:grafana": "python3 grafana-performance.py",
+    "test:loki": "go run loki-performance.go",
+    "test:all": "../scripts/performance-test-suite.sh"
+  },
+  "dependencies": {
+    "axios": "^1.4.0"
+  },
+  "devDependencies": {},
+  "keywords": [
+    "performance",
+    "monitoring",
+    "prometheus",
+    "grafana",
+    "loki",
+    "testing"
+  ],
+  "author": "Performance Test Suite",
+  "license": "MIT"
+}

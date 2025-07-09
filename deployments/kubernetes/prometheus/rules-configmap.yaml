@@ -1,0 +1,620 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-rules
+  namespace: monitoring
+  labels:
+    app: prometheus
+    prometheus: kube-prometheus
+    role: alert-rules
+data:
+  recording-rules.yaml: |
+    groups:
+      - name: sli_calculations
+        interval: 30s
+        rules:
+          # Request rate calculations
+          - record: service:request_rate
+            expr: |
+              sum by (service, namespace, method, status_class) (
+                rate(http_request_duration_seconds_count[5m])
+              )
+          
+          - record: service:request_rate_1m
+            expr: |
+              sum by (service, namespace, method, status_class) (
+                rate(http_request_duration_seconds_count[1m])
+              )
+          
+          # Error rate calculations
+          - record: service:error_rate
+            expr: |
+              sum by (service, namespace) (
+                rate(http_request_duration_seconds_count{status=~"5.."}[5m])
+              ) / 
+              sum by (service, namespace) (
+                rate(http_request_duration_seconds_count[5m])
+              )
+          
+          - record: service:error_rate_1m
+            expr: |
+              sum by (service, namespace) (
+                rate(http_request_duration_seconds_count{status=~"5.."}[1m])
+              ) / 
+              sum by (service, namespace) (
+                rate(http_request_duration_seconds_count[1m])
+              )
+          
+          # Success rate calculations
+          - record: service:success_rate
+            expr: |
+              1 - service:error_rate
+          
+          # Duration percentiles
+          - record: service:request_duration_seconds:p50
+            expr: |
+              histogram_quantile(0.50,
+                sum by (service, namespace, le) (
+                  rate(http_request_duration_seconds_bucket[5m])
+                )
+              )
+          
+          - record: service:request_duration_seconds:p90
+            expr: |
+              histogram_quantile(0.90,
+                sum by (service, namespace, le) (
+                  rate(http_request_duration_seconds_bucket[5m])
+                )
+              )
+          
+          - record: service:request_duration_seconds:p95
+            expr: |
+              histogram_quantile(0.95,
+                sum by (service, namespace, le) (
+                  rate(http_request_duration_seconds_bucket[5m])
+                )
+              )
+          
+          - record: service:request_duration_seconds:p99
+            expr: |
+              histogram_quantile(0.99,
+                sum by (service, namespace, le) (
+                  rate(http_request_duration_seconds_bucket[5m])
+                )
+              )
+
+      - name: resource_utilization
+        interval: 30s
+        rules:
+          # CPU utilization aggregations
+          - record: namespace:cpu_usage_seconds:rate5m
+            expr: |
+              sum by (namespace) (
+                rate(container_cpu_usage_seconds_total[5m])
+              )
+          
+          - record: pod:cpu_usage_seconds:rate5m
+            expr: |
+              sum by (namespace, pod) (
+                rate(container_cpu_usage_seconds_total[5m])
+              )
+          
+          - record: node:cpu_utilization
+            expr: |
+              1 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])))
+          
+          # Memory utilization aggregations
+          - record: namespace:memory_usage_bytes
+            expr: |
+              sum by (namespace) (
+                container_memory_working_set_bytes
+              )
+          
+          - record: pod:memory_usage_bytes
+            expr: |
+              sum by (namespace, pod) (
+                container_memory_working_set_bytes
+              )
+          
+          - record: node:memory_utilization
+            expr: |
+              1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)
+          
+          # Network I/O aggregations
+          - record: namespace:network_receive_bytes:rate5m
+            expr: |
+              sum by (namespace) (
+                rate(container_network_receive_bytes_total[5m])
+              )
+          
+          - record: namespace:network_transmit_bytes:rate5m
+            expr: |
+              sum by (namespace) (
+                rate(container_network_transmit_bytes_total[5m])
+              )
+          
+          # Disk I/O aggregations
+          - record: node:disk_read_bytes:rate5m
+            expr: |
+              sum by (instance) (
+                rate(node_disk_read_bytes_total[5m])
+              )
+          
+          - record: node:disk_write_bytes:rate5m
+            expr: |
+              sum by (instance) (
+                rate(node_disk_written_bytes_total[5m])
+              )
+          
+          - record: node:filesystem_free_percent
+            expr: |
+              100 * node_filesystem_avail_bytes{fstype!~"tmpfs|fuse.lxcfs"}
+              / node_filesystem_size_bytes{fstype!~"tmpfs|fuse.lxcfs"}
+
+      - name: service_mesh_metrics
+        interval: 30s
+        rules:
+          # Istio/Service mesh specific metrics
+          - record: mesh:request_rate
+            expr: |
+              sum by (source_workload, destination_service_name, destination_service_namespace, response_code) (
+                rate(istio_request_duration_milliseconds_count[5m])
+              )
+          
+          - record: mesh:request_success_rate
+            expr: |
+              sum by (source_workload, destination_service_name, destination_service_namespace) (
+                rate(istio_request_duration_milliseconds_count{response_code!~"5.."}[5m])
+              ) /
+              sum by (source_workload, destination_service_name, destination_service_namespace) (
+                rate(istio_request_duration_milliseconds_count[5m])
+              )
+          
+          - record: mesh:request_duration_p50
+            expr: |
+              histogram_quantile(0.50,
+                sum by (source_workload, destination_service_name, destination_service_namespace, le) (
+                  rate(istio_request_duration_milliseconds_bucket[5m])
+                )
+              )
+          
+          - record: mesh:request_duration_p99
+            expr: |
+              histogram_quantile(0.99,
+                sum by (source_workload, destination_service_name, destination_service_namespace, le) (
+                  rate(istio_request_duration_milliseconds_bucket[5m])
+                )
+              )
+
+      - name: slo_metrics
+        interval: 30s
+        rules:
+          # SLO burn rate calculations
+          - record: slo:error_rate_1h
+            expr: |
+              sum by (service, namespace) (
+                rate(http_request_duration_seconds_count{status=~"5.."}[1h])
+              ) / 
+              sum by (service, namespace) (
+                rate(http_request_duration_seconds_count[1h])
+              )
+          
+          - record: slo:error_rate_6h
+            expr: |
+              sum by (service, namespace) (
+                rate(http_request_duration_seconds_count{status=~"5.."}[6h])
+              ) / 
+              sum by (service, namespace) (
+                rate(http_request_duration_seconds_count[6h])
+              )
+          
+          - record: slo:error_rate_24h
+            expr: |
+              sum by (service, namespace) (
+                rate(http_request_duration_seconds_count{status=~"5.."}[24h])
+              ) / 
+              sum by (service, namespace) (
+                rate(http_request_duration_seconds_count[24h])
+              )
+          
+          - record: slo:error_rate_3d
+            expr: |
+              sum by (service, namespace) (
+                rate(http_request_duration_seconds_count{status=~"5.."}[3d])
+              ) / 
+              sum by (service, namespace) (
+                rate(http_request_duration_seconds_count[3d])
+              )
+          
+          # Availability SLO
+          - record: slo:availability_1h
+            expr: |
+              1 - slo:error_rate_1h
+          
+          - record: slo:availability_24h
+            expr: |
+              1 - slo:error_rate_24h
+          
+          # Latency SLO calculations
+          - record: slo:latency_target_rate
+            expr: |
+              sum by (service, namespace) (
+                rate(http_request_duration_seconds_bucket{le="1.0"}[5m])
+              ) / 
+              sum by (service, namespace) (
+                rate(http_request_duration_seconds_count[5m])
+              )
+
+  alerting-rules.yaml: |
+    groups:
+      - name: infrastructure_alerts
+        interval: 30s
+        rules:
+          # Node alerts
+          - alert: NodeDown
+            expr: up{job="node-exporter"} == 0
+            for: 5m
+            labels:
+              severity: critical
+              team: infrastructure
+            annotations:
+              summary: "Node {{ $labels.instance }} is down"
+              description: "Node {{ $labels.instance }} has been down for more than 5 minutes."
+              runbook_url: "https://runbooks.company.com/infrastructure/node-down"
+          
+          - alert: HighNodeCPU
+            expr: node:cpu_utilization > 0.85
+            for: 10m
+            labels:
+              severity: warning
+              team: infrastructure
+            annotations:
+              summary: "High CPU usage on node {{ $labels.instance }}"
+              description: "Node {{ $labels.instance }} CPU usage is above 85% (current value: {{ $value | humanizePercentage }})"
+              runbook_url: "https://runbooks.company.com/infrastructure/high-cpu"
+          
+          - alert: HighNodeMemory
+            expr: node:memory_utilization > 0.85
+            for: 10m
+            labels:
+              severity: warning
+              team: infrastructure
+            annotations:
+              summary: "High memory usage on node {{ $labels.instance }}"
+              description: "Node {{ $labels.instance }} memory usage is above 85% (current value: {{ $value | humanizePercentage }})"
+              runbook_url: "https://runbooks.company.com/infrastructure/high-memory"
+          
+          - alert: NodeDiskSpaceLow
+            expr: node:filesystem_free_percent < 15
+            for: 5m
+            labels:
+              severity: warning
+              team: infrastructure
+            annotations:
+              summary: "Low disk space on node {{ $labels.instance }}"
+              description: "Node {{ $labels.instance }} has less than 15% disk space available on {{ $labels.mountpoint }} (current: {{ $value | humanize }}%)"
+              runbook_url: "https://runbooks.company.com/infrastructure/low-disk-space"
+          
+          - alert: NodeDiskSpaceCritical
+            expr: node:filesystem_free_percent < 5
+            for: 5m
+            labels:
+              severity: critical
+              team: infrastructure
+            annotations:
+              summary: "Critical disk space on node {{ $labels.instance }}"
+              description: "Node {{ $labels.instance }} has less than 5% disk space available on {{ $labels.mountpoint }} (current: {{ $value | humanize }}%)"
+              runbook_url: "https://runbooks.company.com/infrastructure/critical-disk-space"
+          
+          # Kubernetes cluster alerts
+          - alert: KubernetesNodeNotReady
+            expr: kube_node_status_condition{condition="Ready",status="true"} == 0
+            for: 5m
+            labels:
+              severity: critical
+              team: infrastructure
+            annotations:
+              summary: "Kubernetes node {{ $labels.node }} is not ready"
+              description: "Kubernetes node {{ $labels.node }} has been in NotReady state for more than 5 minutes."
+              runbook_url: "https://runbooks.company.com/kubernetes/node-not-ready"
+          
+          - alert: KubernetesPodCrashLooping
+            expr: rate(kube_pod_container_status_restarts_total[15m]) > 0
+            for: 5m
+            labels:
+              severity: warning
+              team: application
+            annotations:
+              summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is crash looping"
+              description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} container {{ $labels.container }} has restarted {{ $value }} times in the last 15 minutes."
+              runbook_url: "https://runbooks.company.com/kubernetes/pod-crash-loop"
+          
+          - alert: KubernetesPodNotHealthy
+            expr: sum by (namespace, pod) (kube_pod_status_phase{phase=~"Pending|Unknown|Failed"}) > 0
+            for: 15m
+            labels:
+              severity: warning
+              team: application
+            annotations:
+              summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is not healthy"
+              description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in {{ $labels.phase }} state for more than 15 minutes."
+              runbook_url: "https://runbooks.company.com/kubernetes/pod-not-healthy"
+          
+          - alert: KubernetesDeploymentReplicasMismatch
+            expr: |
+              kube_deployment_spec_replicas != kube_deployment_status_replicas_available
+            for: 15m
+            labels:
+              severity: warning
+              team: application
+            annotations:
+              summary: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} replica mismatch"
+              description: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has {{ $value }} replicas available, expected {{ $labels.spec_replicas }}."
+              runbook_url: "https://runbooks.company.com/kubernetes/deployment-replica-mismatch"
+
+      - name: application_alerts
+        interval: 30s
+        rules:
+          # High error rate
+          - alert: HighErrorRate
+            expr: service:error_rate > 0.05
+            for: 5m
+            labels:
+              severity: warning
+              team: application
+            annotations:
+              summary: "High error rate for service {{ $labels.service }}"
+              description: "Service {{ $labels.service }} in namespace {{ $labels.namespace }} has error rate above 5% (current: {{ $value | humanizePercentage }})"
+              runbook_url: "https://runbooks.company.com/application/high-error-rate"
+          
+          - alert: CriticalErrorRate
+            expr: service:error_rate > 0.10
+            for: 5m
+            labels:
+              severity: critical
+              team: application
+            annotations:
+              summary: "Critical error rate for service {{ $labels.service }}"
+              description: "Service {{ $labels.service }} in namespace {{ $labels.namespace }} has error rate above 10% (current: {{ $value | humanizePercentage }})"
+              runbook_url: "https://runbooks.company.com/application/critical-error-rate"
+          
+          # Slow response time
+          - alert: SlowResponseTime
+            expr: service:request_duration_seconds:p95 > 1.0
+            for: 10m
+            labels:
+              severity: warning
+              team: application
+            annotations:
+              summary: "Slow response time for service {{ $labels.service }}"
+              description: "Service {{ $labels.service }} in namespace {{ $labels.namespace }} p95 latency is above 1s (current: {{ $value | humanizeDuration }})"
+              runbook_url: "https://runbooks.company.com/application/slow-response-time"
+          
+          - alert: VerySlowResponseTime
+            expr: service:request_duration_seconds:p95 > 5.0
+            for: 5m
+            labels:
+              severity: critical
+              team: application
+            annotations:
+              summary: "Very slow response time for service {{ $labels.service }}"
+              description: "Service {{ $labels.service }} in namespace {{ $labels.namespace }} p95 latency is above 5s (current: {{ $value | humanizeDuration }})"
+              runbook_url: "https://runbooks.company.com/application/very-slow-response-time"
+          
+          # Traffic anomalies
+          - alert: TrafficDropDetected
+            expr: |
+              (service:request_rate < 0.5 * avg_over_time(service:request_rate[1h] offset 1d))
+              and (avg_over_time(service:request_rate[1h] offset 1d) > 1)
+            for: 15m
+            labels:
+              severity: warning
+              team: application
+            annotations:
+              summary: "Traffic drop detected for service {{ $labels.service }}"
+              description: "Service {{ $labels.service }} in namespace {{ $labels.namespace }} is receiving less than 50% of normal traffic"
+              runbook_url: "https://runbooks.company.com/application/traffic-drop"
+          
+          - alert: TrafficSpikeDetected
+            expr: |
+              service:request_rate > 2.0 * avg_over_time(service:request_rate[1h] offset 1d)
+              and service:request_rate > 100
+            for: 10m
+            labels:
+              severity: warning
+              team: application
+            annotations:
+              summary: "Traffic spike detected for service {{ $labels.service }}"
+              description: "Service {{ $labels.service }} in namespace {{ $labels.namespace }} is receiving more than 2x normal traffic"
+              runbook_url: "https://runbooks.company.com/application/traffic-spike"
+
+      - name: service_mesh_alerts
+        interval: 30s
+        rules:
+          # Circuit breaker alerts
+          - alert: CircuitBreakerOpen
+            expr: |
+              sum by (destination_service_name, destination_service_namespace, source_workload) (
+                rate(istio_tcp_connections_opened_total[5m])
+              ) == 0
+              and 
+              sum by (destination_service_name, destination_service_namespace, source_workload) (
+                rate(istio_request_duration_milliseconds_count[5m])
+              ) > 0
+            for: 5m
+            labels:
+              severity: warning
+              team: application
+            annotations:
+              summary: "Circuit breaker open for {{ $labels.destination_service_name }}"
+              description: "Circuit breaker is open from {{ $labels.source_workload }} to {{ $labels.destination_service_namespace }}/{{ $labels.destination_service_name }}"
+              runbook_url: "https://runbooks.company.com/service-mesh/circuit-breaker-open"
+          
+          # High retry rate
+          - alert: HighRetryRate
+            expr: |
+              sum by (destination_service_name, destination_service_namespace) (
+                rate(istio_request_duration_milliseconds_count{response_flags=~".*retry.*"}[5m])
+              ) /
+              sum by (destination_service_name, destination_service_namespace) (
+                rate(istio_request_duration_milliseconds_count[5m])
+              ) > 0.10
+            for: 10m
+            labels:
+              severity: warning
+              team: application
+            annotations:
+              summary: "High retry rate for service {{ $labels.destination_service_name }}"
+              description: "Service {{ $labels.destination_service_namespace }}/{{ $labels.destination_service_name }} has retry rate above 10% (current: {{ $value | humanizePercentage }})"
+              runbook_url: "https://runbooks.company.com/service-mesh/high-retry-rate"
+          
+          # Service mesh latency
+          - alert: ServiceMeshHighLatency
+            expr: mesh:request_duration_p99 > 1000
+            for: 10m
+            labels:
+              severity: warning
+              team: application
+            annotations:
+              summary: "High service mesh latency for {{ $labels.destination_service_name }}"
+              description: "Service mesh p99 latency from {{ $labels.source_workload }} to {{ $labels.destination_service_namespace }}/{{ $labels.destination_service_name }} is above 1s (current: {{ $value }}ms)"
+              runbook_url: "https://runbooks.company.com/service-mesh/high-latency"
+          
+          # Service mesh errors
+          - alert: ServiceMeshHighErrorRate
+            expr: |
+              1 - mesh:request_success_rate < 0.95
+            for: 5m
+            labels:
+              severity: warning
+              team: application
+            annotations:
+              summary: "High service mesh error rate for {{ $labels.destination_service_name }}"
+              description: "Service mesh error rate from {{ $labels.source_workload }} to {{ $labels.destination_service_namespace }}/{{ $labels.destination_service_name }} is above 5%"
+              runbook_url: "https://runbooks.company.com/service-mesh/high-error-rate"
+
+      - name: slo_alerts
+        interval: 30s
+        rules:
+          # Multi-window multi-burn-rate alerts (following Google SRE book)
+          - alert: SLOErrorBudgetBurnRateHigh
+            expr: |
+              (
+                slo:error_rate_1h > (14.4 * 0.001)
+                and
+                slo:error_rate_6h > (14.4 * 0.001)
+              )
+              or
+              (
+                slo:error_rate_6h > (6 * 0.001)
+                and
+                slo:error_rate_24h > (6 * 0.001)
+              )
+            for: 2m
+            labels:
+              severity: warning
+              team: application
+              slo: "availability"
+            annotations:
+              summary: "High error budget burn rate for {{ $labels.service }}"
+              description: "Service {{ $labels.namespace }}/{{ $labels.service }} is burning error budget at high rate. 1h error rate: {{ $labels.error_rate_1h | humanizePercentage }}, 6h error rate: {{ $labels.error_rate_6h | humanizePercentage }}"
+              runbook_url: "https://runbooks.company.com/slo/high-burn-rate"
+          
+          - alert: SLOErrorBudgetBurnRateCritical
+            expr: |
+              (
+                slo:error_rate_1h > (36 * 0.001)
+                and
+                slo:error_rate_6h > (36 * 0.001)
+              )
+            for: 2m
+            labels:
+              severity: critical
+              team: application
+              slo: "availability"
+            annotations:
+              summary: "Critical error budget burn rate for {{ $labels.service }}"
+              description: "Service {{ $labels.namespace }}/{{ $labels.service }} is burning error budget at critical rate. 1h error rate: {{ $labels.error_rate_1h | humanizePercentage }}"
+              runbook_url: "https://runbooks.company.com/slo/critical-burn-rate"
+          
+          - alert: SLOLatencyBudgetBurn
+            expr: |
+              slo:latency_target_rate < 0.95
+            for: 10m
+            labels:
+              severity: warning
+              team: application
+              slo: "latency"
+            annotations:
+              summary: "Latency SLO violation for {{ $labels.service }}"
+              description: "Service {{ $labels.namespace }}/{{ $labels.service }} is not meeting latency SLO. Only {{ $value | humanizePercentage }} of requests are under 1s threshold."
+              runbook_url: "https://runbooks.company.com/slo/latency-violation"
+          
+          - alert: SLOAvailabilityRisk
+            expr: |
+              slo:availability_24h < 0.995
+            for: 15m
+            labels:
+              severity: warning
+              team: application
+              slo: "availability"
+            annotations:
+              summary: "24h availability below target for {{ $labels.service }}"
+              description: "Service {{ $labels.namespace }}/{{ $labels.service }} 24h availability is {{ $value | humanizePercentage }}, below 99.5% target"
+              runbook_url: "https://runbooks.company.com/slo/availability-risk"
+
+      - name: resource_alerts
+        interval: 30s
+        rules:
+          # Container resource alerts
+          - alert: ContainerHighCPU
+            expr: |
+              sum by (namespace, pod, container) (rate(container_cpu_usage_seconds_total[5m])) 
+              / sum by (namespace, pod, container) (container_spec_cpu_quota / container_spec_cpu_period) > 0.9
+            for: 10m
+            labels:
+              severity: warning
+              team: application
+            annotations:
+              summary: "Container {{ $labels.container }} has high CPU usage"
+              description: "Container {{ $labels.container }} in pod {{ $labels.namespace }}/{{ $labels.pod }} is using more than 90% of CPU limit"
+              runbook_url: "https://runbooks.company.com/container/high-cpu"
+          
+          - alert: ContainerHighMemory
+            expr: |
+              container_memory_working_set_bytes 
+              / container_spec_memory_limit_bytes > 0.9
+            for: 10m
+            labels:
+              severity: warning
+              team: application
+            annotations:
+              summary: "Container {{ $labels.container }} has high memory usage"
+              description: "Container {{ $labels.container }} in pod {{ $labels.namespace }}/{{ $labels.pod }} is using more than 90% of memory limit"
+              runbook_url: "https://runbooks.company.com/container/high-memory"
+          
+          - alert: ContainerOOMKilled
+            expr: |
+              kube_pod_container_status_last_terminated_reason{reason="OOMKilled"} == 1
+            for: 1m
+            labels:
+              severity: warning
+              team: application
+            annotations:
+              summary: "Container {{ $labels.container }} was OOM killed"
+              description: "Container {{ $labels.container }} in pod {{ $labels.namespace }}/{{ $labels.pod }} was killed due to out of memory"
+              runbook_url: "https://runbooks.company.com/container/oom-killed"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-rules-config
+  namespace: monitoring
+  labels:
+    app: prometheus
+    prometheus: kube-prometheus
+data:
+  prometheus-rules.yaml: |
+    # This file configures Prometheus to load rules from the ConfigMap
+    rule_files:
+      - /etc/prometheus/rules/*.yaml

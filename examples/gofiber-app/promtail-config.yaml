@@ -1,0 +1,93 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  # Docker containers logs
+  - job_name: containers
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: containerlogs
+          __path__: /var/lib/docker/containers/*/*log
+    
+    pipeline_stages:
+      # Extract container ID from filename
+      - regex:
+          expression: '^/var/lib/docker/containers/(?P<container_id>[a-zA-Z0-9]+)/.*'
+      
+      # Parse JSON logs
+      - json:
+          expressions:
+            output: log
+            stream: stream
+            attrs:
+      
+      # Extract container name from attrs
+      - json:
+          expressions:
+            tag: attrs.tag
+          source: attrs
+      
+      # Parse container name from tag
+      - regex:
+          expression: '^(?P<image_name>([^|]+))\|(?P<container_name>([^|]+))$'
+          source: tag
+      
+      # Set labels
+      - labels:
+          container_id:
+          container_name:
+          image_name:
+          stream:
+      
+      # Output the log line
+      - output:
+          source: output
+
+  # System logs
+  - job_name: syslog
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: syslog
+          __path__: /var/log/syslog
+    
+  # GoFiber app specific logs (if writing to file)
+  - job_name: gofiber-app
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: gofiber-app
+          app: gofiber-example-app
+          __path__: /var/log/gofiber-app/*.log
+    
+    pipeline_stages:
+      # Parse JSON logs
+      - json:
+          expressions:
+            timestamp: time
+            level: level
+            message: msg
+            trace_id: trace_id
+            request_id: request_id
+      
+      # Set timestamp
+      - timestamp:
+          source: timestamp
+          format: RFC3339
+      
+      # Set labels
+      - labels:
+          level:
+          trace_id:
+          request_id:

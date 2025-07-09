@@ -1,0 +1,79 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: monitoring
+  labels:
+    app: grafana
+    component: datasources
+data:
+  prometheus.yaml: |
+    apiVersion: 1
+    
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus-server.monitoring.svc.cluster.local:80
+        isDefault: true
+        jsonData:
+          timeInterval: "15s"
+          queryTimeout: "60s"
+          httpMethod: POST
+        editable: true
+
+  loki.yaml: |
+    apiVersion: 1
+    
+    datasources:
+      - name: Loki
+        type: loki
+        access: proxy
+        url: http://loki.monitoring.svc.cluster.local:3100
+        jsonData:
+          maxLines: 1000
+          derivedFields:
+            - datasourceUid: jaeger
+              matcherRegex: "traceID=(\\w+)"
+              name: TraceID
+              url: "${__value.raw}"
+            - datasourceUid: jaeger
+              matcherRegex: "trace_id=(\\w+)"
+              name: TraceID
+              url: "${__value.raw}"
+        editable: true
+
+  jaeger.yaml: |
+    apiVersion: 1
+    
+    datasources:
+      - name: Jaeger
+        type: jaeger
+        access: proxy
+        url: http://jaeger-query.monitoring.svc.cluster.local:16686
+        uid: jaeger
+        jsonData:
+          tracesToLogs:
+            datasourceUid: loki
+            tags: ["cluster", "namespace", "pod"]
+            mappedTags:
+              - key: service.name
+                value: app
+            spanStartTimeShift: "-1h"
+            spanEndTimeShift: "1h"
+            filterByTraceID: true
+            filterBySpanID: false
+            lokiSearch: true
+        editable: true
+
+  alertmanager.yaml: |
+    apiVersion: 1
+    
+    datasources:
+      - name: AlertManager
+        type: alertmanager
+        access: proxy
+        url: http://alertmanager.monitoring.svc.cluster.local:9093
+        jsonData:
+          implementation: prometheus
+        editable: true

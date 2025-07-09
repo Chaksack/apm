@@ -1,0 +1,110 @@
+{
+  "qualityGate": {
+    "name": "APM Quality Gate",
+    "conditions": [
+      {
+        "metric": "coverage",
+        "operator": "LESS_THAN",
+        "error": "80.0",
+        "description": "Code coverage must be at least 80%"
+      },
+      {
+        "metric": "duplicated_lines_density",
+        "operator": "GREATER_THAN",
+        "error": "3.0",
+        "description": "Duplicated lines should not exceed 3%"
+      },
+      {
+        "metric": "security_hotspots_reviewed",
+        "operator": "LESS_THAN",
+        "error": "100",
+        "description": "All security hotspots must be reviewed"
+      },
+      {
+        "metric": "security_rating",
+        "operator": "GREATER_THAN",
+        "error": "1",
+        "description": "Security rating must be A"
+      },
+      {
+        "metric": "reliability_rating",
+        "operator": "GREATER_THAN",
+        "error": "2",
+        "description": "Reliability rating must be A or B"
+      },
+      {
+        "metric": "sqale_rating",
+        "operator": "GREATER_THAN",
+        "error": "2",
+        "description": "Maintainability rating must be A or B"
+      },
+      {
+        "metric": "blocker_violations",
+        "operator": "GREATER_THAN",
+        "error": "0",
+        "description": "No blocker issues allowed"
+      },
+      {
+        "metric": "critical_violations",
+        "operator": "GREATER_THAN",
+        "error": "5",
+        "description": "Maximum 5 critical issues allowed"
+      },
+      {
+        "metric": "major_violations",
+        "operator": "GREATER_THAN",
+        "error": "20",
+        "description": "Maximum 20 major issues allowed"
+      },
+      {
+        "metric": "code_smells",
+        "operator": "GREATER_THAN",
+        "error": "50",
+        "description": "Maximum 50 code smells allowed"
+      },
+      {
+        "metric": "cognitive_complexity",
+        "operator": "GREATER_THAN",
+        "error": "15",
+        "description": "Cognitive complexity per function should not exceed 15"
+      },
+      {
+        "metric": "new_coverage",
+        "operator": "LESS_THAN",
+        "error": "80.0",
+        "description": "New code coverage must be at least 80%"
+      },
+      {
+        "metric": "new_duplicated_lines_density",
+        "operator": "GREATER_THAN",
+        "error": "3.0",
+        "description": "New code duplicated lines should not exceed 3%"
+      }
+    ]
+  },
+  "thresholds": {
+    "warning": {
+      "coverage": 85.0,
+      "duplicated_lines_density": 2.0,
+      "major_violations": 15,
+      "code_smells": 30
+    }
+  },
+  "exclusions": {
+    "coverage": [
+      "**/test/**",
+      "**/tests/**",
+      "**/vendor/**",
+      "**/node_modules/**",
+      "**/*_test.go",
+      "**/mock_*.go",
+      "**/generated/**"
+    ],
+    "duplication": [
+      "**/test/**",
+      "**/vendor/**",
+      "**/node_modules/**",
+      "**/generated/**"
+    ]
+  }
+}

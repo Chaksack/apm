@@ -1,0 +1,278 @@
+# GolangCI-Lint Configuration
+# Documentation: https://golangci-lint.run/usage/configuration/
+
+run:
+  # Timeout for analysis
+  timeout: 5m
+
+  # Exit code when at least one issue was found
+  issues-exit-code: 1
+
+  # Include test files
+  tests: true
+
+  # List of build tags
+  build-tags:
+    - integration
+
+  # Which dirs to skip
+  skip-dirs:
+    - vendor
+    - third_party
+    - testdata
+    - examples
+    - generated
+
+  # Which files to skip
+  skip-files:
+    - ".*\\.pb\\.go$"
+    - ".*\\.generated\\.go$"
+    - "mock_.*\\.go$"
+
+output:
+  # Format of output
+  format: colored-line-number
+
+  # Print lines of code with issue
+  print-issued-lines: true
+
+  # Print linter name in the end of issue text
+  print-linter-name: true
+
+  # Make issues output unique by adding issue hash
+  uniq-by-line: true
+
+  # Sort results
+  sort-results: true
+
+linters:
+  # Enable all available linters
+  enable:
+    - asciicheck
+    - bodyclose
+    - cyclop
+    - dogsled
+    - dupl
+    - durationcheck
+    - errcheck
+    - errname
+    - errorlint
+    - exhaustive
+    - exportloopref
+    - forbidigo
+    - forcetypeassert
+    - funlen
+    - gci
+    - gochecknoglobals
+    - gochecknoinits
+    - gocognit
+    - goconst
+    - gocritic
+    - gocyclo
+    - godot
+    - godox
+    - goerr113
+    - gofmt
+    - gofumpt
+    - goheader
+    - goimports
+    - gomnd
+    - gomoddirectives
+    - gomodguard
+    - goprintffuncname
+    - gosec
+    - gosimple
+    - govet
+    - grouper
+    - importas
+    - ineffassign
+    - lll
+    - maintidx
+    - makezero
+    - misspell
+    - nakedret
+    - nestif
+    - nilerr
+    - nilnil
+    - nlreturn
+    - noctx
+    - nolintlint
+    - paralleltest
+    - prealloc
+    - predeclared
+    - promlinter
+    - revive
+    - rowserrcheck
+    - sqlclosecheck
+    - staticcheck
+    - stylecheck
+    - tagliatelle
+    - tenv
+    - testpackage
+    - thelper
+    - tparallel
+    - typecheck
+    - unconvert
+    - unparam
+    - unused
+    - varnamelen
+    - wastedassign
+    - whitespace
+    - wrapcheck
+    - wsl
+
+  # Disable specific linters
+  disable:
+    - deadcode          # Deprecated
+    - exhaustivestruct  # Deprecated
+    - golint           # Deprecated
+    - ifshort          # Deprecated
+    - interfacer       # Deprecated
+    - maligned         # Deprecated
+    - nosnakecase      # Deprecated
+    - scopelint        # Deprecated
+    - structcheck      # Deprecated
+    - varcheck         # Deprecated
+
+linters-settings:
+  # Cyclomatic complexity
+  cyclop:
+    max-complexity: 15
+    package-average: 0.0
+    skip-tests: false
+
+  # Function length
+  funlen:
+    lines: 100
+    statements: 50
+
+  # Line length
+  lll:
+    line-length: 120
+    tab-width: 4
+
+  # Cognitive complexity
+  gocognit:
+    min-complexity: 20
+
+  # Const detection
+  goconst:
+    min-len: 3
+    min-occurrences: 3
+
+  # Security
+  gosec:
+    severity: low
+    confidence: low
+    excludes:
+      - G401 # Use of weak cryptographic primitive
+      - G501 # Imported blacklisted crypto
+      - G502 # Insecure SSL/TLS version
+
+  # Imports
+  goimports:
+    local-prefixes: github.com/yourusername/apm
+
+  # Error wrapping
+  wrapcheck:
+    ignoreSigs:
+      - .Errorf(
+      - errors.New(
+      - errors.Unwrap(
+      - .Wrap(
+      - .Wrapf(
+      - .WithMessage(
+      - .WithMessagef(
+      - .WithStack(
+
+  # Variable name length
+  varnamelen:
+    min-name-length: 2
+    check-receiver: false
+    check-return: false
+    ignore-type-assert-ok: true
+    ignore-map-index-ok: true
+    ignore-chan-recv-ok: true
+    ignore-names:
+      - err
+      - ok
+      - id
+      - i
+      - j
+      - k
+      - v
+      - w
+      - tt
+
+issues:
+  # Maximum issues count per one linter
+  max-issues-per-linter: 0
+
+  # Maximum count of issues with the same text
+  max-same-issues: 0
+
+  # Exclude some linters from specific files
+  exclude-rules:
+    # Exclude some linters from test files
+    - path: _test\.go
+      linters:
+        - gocyclo
+        - errcheck
+        - dupl
+        - gosec
+        - funlen
+        - goconst
+        - gocognit
+        - scopelint
+        - lll
+
+    # Exclude known patterns
+    - path: cmd/
+      linters:
+        - gochecknoglobals
+        - gochecknoinits
+
+    # Exclude generated files
+    - path: \.pb\.go
+      linters:
+        - all
+
+    # Exclude vendor
+    - path: vendor/
+      linters:
+        - all
+
+  # Exclude configuration
+  exclude-use-default: false
+  exclude:
+    # errcheck
+    - "Error return value of .((os\\.)?std(out|err)\\..*|.*Close|.*Flush|os\\.Remove(All)?|.*print(f|ln)?|os\\.(Un)?Setenv). is not checked"
+    
+    # golint
+    - "should have comment or be unexported"
+    
+    # staticcheck
+    - "SA9003:"
+    
+    # gosec
+    - "G104: Errors unhandled"
+    - "G204: Subprocess launched with variable"
+
+  # Show all issues
+  exclude-case-sensitive: false
+
+  # Fix found issues
+  fix: true
+
+severity:
+  # Default severity
+  default-severity: error
+
+  # Specific severities
+  rules:
+    - linters:
+        - dupl
+      severity: info
+    - linters:
+        - godox
+      severity: warning

@@ -1,0 +1,209 @@
+# Slack Channel Mapping Configuration
+# Maps alert types to channels, defines team assignments and escalation paths
+
+channel_mappings:
+  # Production environment channels
+  production:
+    default: "#alerts-prod"
+    critical: "#ops-critical"
+    security: "#security-alerts"
+    database: "#database-prod"
+    application: "#app-prod"
+    infrastructure: "#infra-prod"
+    
+  # Staging environment channels
+  staging:
+    default: "#alerts-staging"
+    all_severities: "#staging-all"  # All staging alerts go to one channel
+    
+  # Development environment channels
+  development:
+    default: "#alerts-dev"
+    all_severities: "#dev-alerts"  # All dev alerts go to one channel
+
+# Team assignments by service/component
+team_assignments:
+  # Database team
+  database:
+    primary_channel: "#database-alerts"
+    escalation_channel: "#database-oncall"
+    team_members:
+      - "@db-oncall"
+      - "@db-team"
+    services:
+      - "postgresql"
+      - "mongodb"
+      - "redis"
+      - "elasticsearch"
+      
+  # Application team
+  application:
+    primary_channel: "#app-alerts"
+    escalation_channel: "#app-oncall"
+    team_members:
+      - "@app-oncall"
+      - "@backend-team"
+      - "@frontend-team"
+    services:
+      - "api-gateway"
+      - "user-service"
+      - "payment-service"
+      - "notification-service"
+      
+  # Infrastructure team
+  infrastructure:
+    primary_channel: "#infra-alerts"
+    escalation_channel: "#infra-oncall"
+    team_members:
+      - "@infra-oncall"
+      - "@sre-team"
+    services:
+      - "kubernetes"
+      - "docker"
+      - "networking"
+      - "storage"
+      
+  # Security team
+  security:
+    primary_channel: "#security-alerts"
+    escalation_channel: "#security-incidents"
+    team_members:
+      - "@security-oncall"
+      - "@security-team"
+    alert_patterns:
+      - ".*[Ss]ecurity.*"
+      - ".*[Uu]nauthorized.*"
+      - ".*[Ii]ntrusion.*"
+      - ".*[Vv]ulnerability.*"
+
+# Escalation paths
+escalation_paths:
+  # Standard escalation
+  standard:
+    levels:
+      - level: 1
+        delay: "0m"
+        channels: ["primary_channel"]
+        
+      - level: 2
+        delay: "15m"
+        channels: ["primary_channel", "escalation_channel"]
+        notify: ["team_members"]
+        
+      - level: 3
+        delay: "30m"
+        channels: ["escalation_channel", "#ops-managers"]
+        notify: ["@oncall-manager"]
+        
+  # Critical escalation (faster)
+  critical:
+    levels:
+      - level: 1
+        delay: "0m"
+        channels: ["primary_channel", "escalation_channel"]
+        notify: ["team_members"]
+        
+      - level: 2
+        delay: "5m"
+        channels: ["#ops-critical", "#ops-managers"]
+        notify: ["@oncall-manager", "@site-reliability-lead"]
+        
+      - level: 3
+        delay: "15m"
+        channels: ["#executive-alerts"]
+        notify: ["@cto", "@vp-engineering"]
+        
+  # Security escalation
+  security:
+    levels:
+      - level: 1
+        delay: "0m"
+        channels: ["#security-alerts"]
+        notify: ["@security-oncall"]
+        
+      - level: 2
+        delay: "5m"
+        channels: ["#security-incidents"]
+        notify: ["@security-team", "@security-manager"]
+        
+      - level: 3
+        delay: "10m"
+        channels: ["#executive-alerts"]
+        notify: ["@ciso", "@cto"]
+
+# Channel routing rules
+routing_rules:
+  # Route by severity
+  - name: "severity-routing"
+    conditions:
+      - field: "severity"
+        operator: "equals"
+        value: "critical"
+    action:
+      channel: "#ops-critical"
+      escalation: "critical"
+      
+  - name: "security-routing"
+    conditions:
+      - field: "alertname"
+        operator: "matches"
+        value: ".*(Security|Intrusion|Unauthorized).*"
+    action:
+      channel: "#security-alerts"
+      escalation: "security"
+      
+  # Route by time of day
+  - name: "off-hours-routing"
+    conditions:
+      - field: "hour"
+        operator: "not_between"
+        value: [9, 17]  # Outside 9 AM - 5 PM
+    action:
+      additional_channel: "#after-hours-oncall"
+      
+  # Route by environment
+  - name: "production-routing"
+    conditions:
+      - field: "env"
+        operator: "equals"
+        value: "production"
+    action:
+      channel_prefix: "production"
+      
+# Special routing configurations
+special_routing:
+  # Maintenance mode
+  maintenance_mode:
+    enabled: false
+    redirect_to: "#maintenance-alerts"
+    suppress_notifications: false
+    
+  # Holiday routing
+  holiday_mode:
+    enabled: false
+    redirect_non_critical_to: "#holiday-queue"
+    critical_only: true
+    
+  # Testing mode
+  test_mode:
+    enabled: false
+    redirect_all_to: "#test-alerts"
+    
+# Channel metadata
+channel_metadata:
+  "#ops-critical":
+    description: "Critical production alerts requiring immediate attention"
+    notification_priority: "urgent"
+    
+  "#security-alerts":
+    description: "Security-related alerts and incidents"
+    notification_priority: "high"
+    retention_days: 365
+    
+  "#alerts-prod":
+    description: "General production alerts"
+    notification_priority: "normal"
+    
+  "#alerts-dev":
+    description: "Development environment alerts"
+    notification_priority: "low"

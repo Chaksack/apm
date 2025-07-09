@@ -1,0 +1,27 @@
+{
+  "name": "jaeger-integration-tests",
+  "version": "1.0.0",
+  "description": "Jaeger integration tests for GoFiber application",
+  "main": "jaeger-integration-test.js",
+  "scripts": {
+    "test": "mocha jaeger-integration-test.js --timeout 60000",
+    "test:standalone": "node jaeger-integration-test.js"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "chai": "^4.3.10",
+    "mocha": "^10.2.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.50.0"
+  },
+  "keywords": [
+    "jaeger",
+    "tracing",
+    "opentracing",
+    "gofiber",
+    "testing"
+  ],
+  "author": "APM Team",
+  "license": "MIT"
+}

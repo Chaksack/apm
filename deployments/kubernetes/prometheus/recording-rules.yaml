@@ -1,0 +1,235 @@
+groups:
+  - name: sli_calculations
+    interval: 30s
+    rules:
+      # Request rate calculations
+      - record: service:request_rate
+        expr: |
+          sum by (service, namespace, method, status_class) (
+            rate(http_request_duration_seconds_count[5m])
+          )
+      
+      - record: service:request_rate_1m
+        expr: |
+          sum by (service, namespace, method, status_class) (
+            rate(http_request_duration_seconds_count[1m])
+          )
+      
+      # Error rate calculations
+      - record: service:error_rate
+        expr: |
+          sum by (service, namespace) (
+            rate(http_request_duration_seconds_count{status=~"5.."}[5m])
+          ) / 
+          sum by (service, namespace) (
+            rate(http_request_duration_seconds_count[5m])
+          )
+      
+      - record: service:error_rate_1m
+        expr: |
+          sum by (service, namespace) (
+            rate(http_request_duration_seconds_count{status=~"5.."}[1m])
+          ) / 
+          sum by (service, namespace) (
+            rate(http_request_duration_seconds_count[1m])
+          )
+      
+      # Success rate calculations
+      - record: service:success_rate
+        expr: |
+          1 - service:error_rate
+      
+      # Duration percentiles
+      - record: service:request_duration_seconds:p50
+        expr: |
+          histogram_quantile(0.50,
+            sum by (service, namespace, le) (
+              rate(http_request_duration_seconds_bucket[5m])
+            )
+          )
+      
+      - record: service:request_duration_seconds:p90
+        expr: |
+          histogram_quantile(0.90,
+            sum by (service, namespace, le) (
+              rate(http_request_duration_seconds_bucket[5m])
+            )
+          )
+      
+      - record: service:request_duration_seconds:p95
+        expr: |
+          histogram_quantile(0.95,
+            sum by (service, namespace, le) (
+              rate(http_request_duration_seconds_bucket[5m])
+            )
+          )
+      
+      - record: service:request_duration_seconds:p99
+        expr: |
+          histogram_quantile(0.99,
+            sum by (service, namespace, le) (
+              rate(http_request_duration_seconds_bucket[5m])
+            )
+          )
+
+  - name: resource_utilization
+    interval: 30s
+    rules:
+      # CPU utilization aggregations
+      - record: namespace:cpu_usage_seconds:rate5m
+        expr: |
+          sum by (namespace) (
+            rate(container_cpu_usage_seconds_total[5m])
+          )
+      
+      - record: pod:cpu_usage_seconds:rate5m
+        expr: |
+          sum by (namespace, pod) (
+            rate(container_cpu_usage_seconds_total[5m])
+          )
+      
+      - record: node:cpu_utilization
+        expr: |
+          1 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])))
+      
+      # Memory utilization aggregations
+      - record: namespace:memory_usage_bytes
+        expr: |
+          sum by (namespace) (
+            container_memory_working_set_bytes
+          )
+      
+      - record: pod:memory_usage_bytes
+        expr: |
+          sum by (namespace, pod) (
+            container_memory_working_set_bytes
+          )
+      
+      - record: node:memory_utilization
+        expr: |
+          1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)
+      
+      # Network I/O aggregations
+      - record: namespace:network_receive_bytes:rate5m
+        expr: |
+          sum by (namespace) (
+            rate(container_network_receive_bytes_total[5m])
+          )
+      
+      - record: namespace:network_transmit_bytes:rate5m
+        expr: |
+          sum by (namespace) (
+            rate(container_network_transmit_bytes_total[5m])
+          )
+      
+      # Disk I/O aggregations
+      - record: node:disk_read_bytes:rate5m
+        expr: |
+          sum by (instance) (
+            rate(node_disk_read_bytes_total[5m])
+          )
+      
+      - record: node:disk_write_bytes:rate5m
+        expr: |
+          sum by (instance) (
+            rate(node_disk_written_bytes_total[5m])
+          )
+      
+      - record: node:filesystem_free_percent
+        expr: |
+          100 * node_filesystem_avail_bytes{fstype!~"tmpfs|fuse.lxcfs"}
+          / node_filesystem_size_bytes{fstype!~"tmpfs|fuse.lxcfs"}
+
+  - name: service_mesh_metrics
+    interval: 30s
+    rules:
+      # Istio/Service mesh specific metrics
+      - record: mesh:request_rate
+        expr: |
+          sum by (source_workload, destination_service_name, destination_service_namespace, response_code) (
+            rate(istio_request_duration_milliseconds_count[5m])
+          )
+      
+      - record: mesh:request_success_rate
+        expr: |
+          sum by (source_workload, destination_service_name, destination_service_namespace) (
+            rate(istio_request_duration_milliseconds_count{response_code!~"5.."}[5m])
+          ) /
+          sum by (source_workload, destination_service_name, destination_service_namespace) (
+            rate(istio_request_duration_milliseconds_count[5m])
+          )
+      
+      - record: mesh:request_duration_p50
+        expr: |
+          histogram_quantile(0.50,
+            sum by (source_workload, destination_service_name, destination_service_namespace, le) (
+              rate(istio_request_duration_milliseconds_bucket[5m])
+            )
+          )
+      
+      - record: mesh:request_duration_p99
+        expr: |
+          histogram_quantile(0.99,
+            sum by (source_workload, destination_service_name, destination_service_namespace, le) (
+              rate(istio_request_duration_milliseconds_bucket[5m])
+            )
+          )
+
+  - name: slo_metrics
+    interval: 30s
+    rules:
+      # SLO burn rate calculations
+      - record: slo:error_rate_1h
+        expr: |
+          sum by (service, namespace) (
+            rate(http_request_duration_seconds_count{status=~"5.."}[1h])
+          ) / 
+          sum by (service, namespace) (
+            rate(http_request_duration_seconds_count[1h])
+          )
+      
+      - record: slo:error_rate_6h
+        expr: |
+          sum by (service, namespace) (
+            rate(http_request_duration_seconds_count{status=~"5.."}[6h])
+          ) / 
+          sum by (service, namespace) (
+            rate(http_request_duration_seconds_count[6h])
+          )
+      
+      - record: slo:error_rate_24h
+        expr: |
+          sum by (service, namespace) (
+            rate(http_request_duration_seconds_count{status=~"5.."}[24h])
+          ) / 
+          sum by (service, namespace) (
+            rate(http_request_duration_seconds_count[24h])
+          )
+      
+      - record: slo:error_rate_3d
+        expr: |
+          sum by (service, namespace) (
+            rate(http_request_duration_seconds_count{status=~"5.."}[3d])
+          ) / 
+          sum by (service, namespace) (
+            rate(http_request_duration_seconds_count[3d])
+          )
+      
+      # Availability SLO
+      - record: slo:availability_1h
+        expr: |
+          1 - slo:error_rate_1h
+      
+      - record: slo:availability_24h
+        expr: |
+          1 - slo:error_rate_24h
+      
+      # Latency SLO calculations
+      - record: slo:latency_target_rate
+        expr: |
+          sum by (service, namespace) (
+            rate(http_request_duration_seconds_bucket{le="1.0"}[5m])
+          ) / 
+          sum by (service, namespace) (
+            rate(http_request_duration_seconds_count[5m])
+          )

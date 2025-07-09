@@ -1,0 +1,327 @@
+# AlertManager Silence Templates Configuration
+# Pre-defined silence templates for common scenarios
+# These can be activated via AlertManager API or UI
+
+# Silence templates for different scenarios
+silence_templates:
+  # Planned maintenance windows
+  planned_maintenance:
+    database_maintenance:
+      comment: "Scheduled database maintenance window"
+      matchers:
+        - name: alertname
+          value: "Database.*"
+          isRegex: true
+        - name: severity
+          value: "warning"
+          isRegex: false
+      duration: 4h
+      tags:
+        - maintenance
+        - database
+        - planned
+
+    infrastructure_upgrade:
+      comment: "Infrastructure upgrade and patching window"
+      matchers:
+        - name: alertname
+          value: "(NodeDown|NodeNotReady|NodeMemoryPressure|NodeDiskPressure)"
+          isRegex: true
+        - name: maintenance_window
+          value: "true"
+      duration: 6h
+      tags:
+        - maintenance
+        - infrastructure
+        - planned
+
+    application_deployment:
+      comment: "Application deployment window - expecting temporary instability"
+      matchers:
+        - name: alertname
+          value: "(HighErrorRate|ServiceUnavailable|EndpointDown|HealthCheckFailed)"
+          isRegex: true
+        - name: deployment_active
+          value: "true"
+      duration: 2h
+      tags:
+        - deployment
+        - application
+        - planned
+
+    load_balancer_maintenance:
+      comment: "Load balancer configuration update"
+      matchers:
+        - name: component
+          value: "load-balancer"
+        - name: alertname
+          value: "(BackendUnhealthy|HealthCheckFailed)"
+          isRegex: true
+      duration: 1h
+      tags:
+        - maintenance
+        - network
+        - load-balancer
+
+  # Development environment silences
+  development_environment:
+    dev_non_critical:
+      comment: "Silence non-critical alerts in development environment"
+      matchers:
+        - name: environment
+          value: "development"
+        - name: severity
+          value: "(warning|info)"
+          isRegex: true
+      duration: 168h  # 1 week
+      tags:
+        - development
+        - non-critical
+
+    dev_resource_alerts:
+      comment: "Development environment resource constraints are expected"
+      matchers:
+        - name: environment
+          value: "development"
+        - name: alertname
+          value: "(HighMemoryUsage|HighCPUUsage|DiskSpaceLow)"
+          isRegex: true
+      duration: 720h  # 30 days
+      tags:
+        - development
+        - resources
+
+    dev_intermittent_failures:
+      comment: "Known intermittent failures in dev environment"
+      matchers:
+        - name: environment
+          value: "development"
+        - name: alertname
+          value: "(ServiceFlapping|IntermittentFailure)"
+          isRegex: true
+      duration: 168h  # 1 week
+      tags:
+        - development
+        - known-issue
+
+  # Testing and QA silences
+  testing:
+    load_testing:
+      comment: "Load testing in progress - performance alerts expected"
+      matchers:
+        - name: alertname
+          value: "(HighLatency|HighLoad|QueueBacklog|ResourceExhaustion)"
+          isRegex: true
+        - name: load_test_active
+          value: "true"
+      duration: 4h
+      tags:
+        - testing
+        - performance
+        - load-test
+
+    chaos_engineering:
+      comment: "Chaos engineering experiments in progress"
+      matchers:
+        - name: chaos_experiment
+          value: "active"
+        - name: severity
+          value: "(warning|info)"
+          isRegex: true
+      duration: 2h
+      tags:
+        - testing
+        - chaos-engineering
+        - experimental
+
+    security_testing:
+      comment: "Security testing may trigger alerts"
+      matchers:
+        - name: alertname
+          value: "(SecurityScan|UnauthorizedAccess|AnomalousTraffic)"
+          isRegex: true
+        - name: security_test_active
+          value: "true"
+      duration: 3h
+      tags:
+        - testing
+        - security
+        - penetration-test
+
+  # Specific service silences
+  service_specific:
+    batch_job_window:
+      comment: "Nightly batch job processing window"
+      matchers:
+        - name: job_type
+          value: "batch"
+        - name: alertname
+          value: "(HighCPU|HighMemory|QueueBacklog)"
+          isRegex: true
+      duration: 6h
+      start_time: "02:00"
+      tags:
+        - batch-processing
+        - scheduled
+        - nightly
+
+    backup_window:
+      comment: "Backup operations in progress"
+      matchers:
+        - name: alertname
+          value: "(BackupRunning|HighDiskIO|NetworkSaturation)"
+          isRegex: true
+        - name: backup_active
+          value: "true"
+      duration: 4h
+      tags:
+        - backup
+        - storage
+        - scheduled
+
+    data_migration:
+      comment: "Data migration in progress"
+      matchers:
+        - name: alertname
+          value: "(DatabaseLoad|ReplicationLag|HighDiskIO)"
+          isRegex: true
+        - name: migration_active
+          value: "true"
+      duration: 12h
+      tags:
+        - migration
+        - database
+        - data
+
+  # Known issues and workarounds
+  known_issues:
+    third_party_api_issues:
+      comment: "Known issues with third-party API - vendor working on fix"
+      matchers:
+        - name: alertname
+          value: "ThirdPartyAPIError"
+        - name: service
+          value: "(payment-gateway|shipping-api|weather-api)"
+          isRegex: true
+      duration: 24h
+      tags:
+        - known-issue
+        - third-party
+        - vendor
+
+    legacy_system_alerts:
+      comment: "Legacy system known issues - migration planned"
+      matchers:
+        - name: system
+          value: "legacy"
+        - name: severity
+          value: "warning"
+      duration: 720h  # 30 days
+      tags:
+        - legacy
+        - known-issue
+        - technical-debt
+
+    false_positive_alerts:
+      comment: "Known false positive - alert rule being refined"
+      matchers:
+        - name: alertname
+          value: "FalsePositiveAlert"
+        - name: under_investigation
+          value: "true"
+      duration: 168h  # 1 week
+      tags:
+        - false-positive
+        - under-investigation
+
+  # Emergency silences
+  emergency:
+    incident_response:
+      comment: "Active incident - silencing non-critical alerts to reduce noise"
+      matchers:
+        - name: severity
+          value: "(warning|info)"
+          isRegex: true
+        - name: incident_active
+          value: "true"
+      duration: 4h
+      tags:
+        - incident
+        - emergency
+        - noise-reduction
+
+    cascading_failure:
+      comment: "Cascading failure detected - focusing on root cause"
+      matchers:
+        - name: failure_cascade
+          value: "true"
+        - name: severity
+          value: "warning"
+      duration: 2h
+      tags:
+        - incident
+        - cascading-failure
+        - emergency
+
+# Recurring silence schedules
+recurring_silences:
+  # Weekly maintenance windows
+  weekly_maintenance:
+    schedule: "0 2 * * 0"  # Every Sunday at 2 AM
+    duration: 4h
+    matchers:
+      - name: maintenance_eligible
+        value: "true"
+      - name: severity
+        value: "(warning|info)"
+        isRegex: true
+    comment: "Weekly maintenance window"
+
+  # End of day batch processing
+  daily_batch:
+    schedule: "0 22 * * *"  # Every day at 10 PM
+    duration: 4h
+    matchers:
+      - name: alertname
+        value: "(BatchJobRunning|QueueBacklog)"
+        isRegex: true
+    comment: "Daily batch processing window"
+
+  # Month-end processing
+  monthly_processing:
+    schedule: "0 0 28 * *"  # 28th of every month
+    duration: 48h
+    matchers:
+      - name: alertname
+        value: "(MonthEndProcessing|ReportGeneration|BillingCalculation)"
+        isRegex: true
+    comment: "Month-end processing window"
+
+# Auto-silence rules based on conditions
+auto_silence_rules:
+  # Automatically silence after N occurrences
+  flapping_service:
+    condition:
+      alert_count: 10
+      time_window: 1h
+    action:
+      silence_duration: 4h
+      comment: "Auto-silenced due to flapping"
+    matchers:
+      - name: alertname
+        value: "ServiceFlapping"
+
+  # Silence during known high-load periods
+  business_hours_load:
+    condition:
+      time_range: "09:00-10:00"  # Morning rush
+      weekdays: ["monday", "tuesday", "wednesday", "thursday", "friday"]
+    action:
+      silence_duration: 1h
+      comment: "Expected high load during business hours"
+    matchers:
+      - name: alertname
+        value: "(HighLoad|QueueBacklog)"
+        isRegex: true
+      - name: severity
+        value: "warning"

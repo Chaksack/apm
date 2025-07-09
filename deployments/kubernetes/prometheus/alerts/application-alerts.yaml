@@ -1,0 +1,319 @@
+groups:
+  - name: application_alerts
+    interval: 30s
+    rules:
+      # High Error Rate Alerts
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum by (service, namespace, method, route) (
+              rate(http_requests_total{status=~"5.."}[5m])
+            ) / 
+            sum by (service, namespace, method, route) (
+              rate(http_requests_total[5m])
+            )
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          alert_type: error_rate
+        annotations:
+          summary: "High error rate detected"
+          description: "Service {{ $labels.service }} in namespace {{ $labels.namespace }} has error rate of {{ $value | humanizePercentage }} on {{ $labels.method }} {{ $labels.route }}."
+          runbook_url: "https://wiki.example.com/runbooks/high-error-rate"
+
+      - alert: ModerateErrorRate
+        expr: |
+          (
+            sum by (service, namespace, method, route) (
+              rate(http_requests_total{status=~"5.."}[5m])
+            ) / 
+            sum by (service, namespace, method, route) (
+              rate(http_requests_total[5m])
+            )
+          ) > 0.01
+        for: 10m
+        labels:
+          severity: warning
+          alert_type: error_rate
+        annotations:
+          summary: "Moderate error rate detected"
+          description: "Service {{ $labels.service }} in namespace {{ $labels.namespace }} has error rate of {{ $value | humanizePercentage }} on {{ $labels.method }} {{ $labels.route }}."
+          runbook_url: "https://wiki.example.com/runbooks/moderate-error-rate"
+
+      - alert: ErrorRateIncreasing
+        expr: |
+          (
+            sum by (service, namespace) (rate(http_requests_total{status=~"5.."}[5m]))
+            /
+            sum by (service, namespace) (rate(http_requests_total[5m]))
+          ) 
+          > 
+          (
+            sum by (service, namespace) (rate(http_requests_total{status=~"5.."}[5m] offset 1h))
+            /
+            sum by (service, namespace) (rate(http_requests_total[5m] offset 1h))
+          ) * 2
+          AND
+          (
+            sum by (service, namespace) (rate(http_requests_total{status=~"5.."}[5m]))
+            /
+            sum by (service, namespace) (rate(http_requests_total[5m]))
+          ) > 0.001
+        for: 15m
+        labels:
+          severity: warning
+          alert_type: error_trend
+        annotations:
+          summary: "Error rate increasing rapidly"
+          description: "Service {{ $labels.service }} error rate has doubled compared to 1 hour ago. Current: {{ $value | humanizePercentage }}."
+          runbook_url: "https://wiki.example.com/runbooks/error-rate-trending"
+
+      # Slow Response Time Alerts
+      - alert: SlowResponseTime
+        expr: |
+          histogram_quantile(0.95,
+            sum by (service, namespace, method, route, le) (
+              rate(http_request_duration_seconds_bucket[5m])
+            )
+          ) > 1
+        for: 5m
+        labels:
+          severity: warning
+          alert_type: latency
+        annotations:
+          summary: "Slow response time detected"
+          description: "Service {{ $labels.service }} P95 latency is {{ $value }}s for {{ $labels.method }} {{ $labels.route }}."
+          runbook_url: "https://wiki.example.com/runbooks/slow-response-time"
+
+      - alert: VerySlowResponseTime
+        expr: |
+          histogram_quantile(0.95,
+            sum by (service, namespace, method, route, le) (
+              rate(http_request_duration_seconds_bucket[5m])
+            )
+          ) > 5
+        for: 2m
+        labels:
+          severity: critical
+          alert_type: latency
+        annotations:
+          summary: "Very slow response time detected"
+          description: "Service {{ $labels.service }} P95 latency is {{ $value }}s for {{ $labels.method }} {{ $labels.route }}. This is critically slow."
+          runbook_url: "https://wiki.example.com/runbooks/very-slow-response-time"
+
+      - alert: LatencyIncreasing
+        expr: |
+          (
+            histogram_quantile(0.95,
+              sum by (service, namespace, le) (
+                rate(http_request_duration_seconds_bucket[5m])
+              )
+            )
+          )
+          >
+          (
+            histogram_quantile(0.95,
+              sum by (service, namespace, le) (
+                rate(http_request_duration_seconds_bucket[5m] offset 1h)
+              )
+            ) * 2
+          )
+          AND
+          (
+            histogram_quantile(0.95,
+              sum by (service, namespace, le) (
+                rate(http_request_duration_seconds_bucket[5m])
+              )
+            ) > 0.5
+          )
+        for: 15m
+        labels:
+          severity: warning
+          alert_type: latency_trend
+        annotations:
+          summary: "Response time increasing"
+          description: "Service {{ $labels.service }} P95 latency has doubled compared to 1 hour ago. Current: {{ $value }}s."
+          runbook_url: "https://wiki.example.com/runbooks/latency-trending"
+
+      # Traffic Anomaly Alerts
+      - alert: TrafficDropped
+        expr: |
+          (
+            sum by (service, namespace) (rate(http_requests_total[5m]))
+            <
+            sum by (service, namespace) (rate(http_requests_total[5m] offset 1h)) * 0.5
+          )
+          AND
+          (
+            sum by (service, namespace) (rate(http_requests_total[5m] offset 1h)) > 1
+          )
+        for: 10m
+        labels:
+          severity: warning
+          alert_type: traffic_anomaly
+        annotations:
+          summary: "Significant traffic drop detected"
+          description: "Service {{ $labels.service }} traffic dropped by more than 50% compared to 1 hour ago. Current: {{ $value }} req/s."
+          runbook_url: "https://wiki.example.com/runbooks/traffic-drop"
+
+      - alert: TrafficSpike
+        expr: |
+          (
+            sum by (service, namespace) (rate(http_requests_total[5m]))
+            >
+            sum by (service, namespace) (rate(http_requests_total[5m] offset 1h)) * 5
+          )
+          AND
+          (
+            sum by (service, namespace) (rate(http_requests_total[5m])) > 100
+          )
+        for: 5m
+        labels:
+          severity: warning
+          alert_type: traffic_anomaly
+        annotations:
+          summary: "Traffic spike detected"
+          description: "Service {{ $labels.service }} traffic increased by 5x compared to 1 hour ago. Current: {{ $value }} req/s."
+          runbook_url: "https://wiki.example.com/runbooks/traffic-spike"
+
+      - alert: NoTraffic
+        expr: |
+          sum by (service, namespace) (rate(http_requests_total[5m])) == 0
+          AND
+          sum by (service, namespace) (rate(http_requests_total[5m] offset 1h)) > 0
+        for: 5m
+        labels:
+          severity: critical
+          alert_type: traffic_anomaly
+        annotations:
+          summary: "No traffic detected"
+          description: "Service {{ $labels.service }} in namespace {{ $labels.namespace }} is receiving no traffic but was receiving traffic 1 hour ago."
+          runbook_url: "https://wiki.example.com/runbooks/no-traffic"
+
+      # Business Metric Alerts
+      - alert: LowConversionRate
+        expr: |
+          (
+            sum by (service, namespace) (rate(business_conversions_total[1h]))
+            /
+            sum by (service, namespace) (rate(business_attempts_total[1h]))
+          ) < 0.01
+          AND
+          sum by (service, namespace) (rate(business_attempts_total[1h])) > 10
+        for: 30m
+        labels:
+          severity: warning
+          alert_type: business_metric
+        annotations:
+          summary: "Low conversion rate"
+          description: "Service {{ $labels.service }} has conversion rate of {{ $value | humanizePercentage }}, below 1% threshold."
+          runbook_url: "https://wiki.example.com/runbooks/low-conversion-rate"
+
+      - alert: RevenueDropped
+        expr: |
+          sum by (service, namespace) (rate(business_revenue_total[1h]))
+          <
+          sum by (service, namespace) (rate(business_revenue_total[1h] offset 24h)) * 0.8
+        for: 1h
+        labels:
+          severity: warning
+          alert_type: business_metric
+        annotations:
+          summary: "Revenue dropped significantly"
+          description: "Service {{ $labels.service }} revenue dropped by more than 20% compared to same time yesterday. Current: ${{ $value | humanize }}/hour."
+          runbook_url: "https://wiki.example.com/runbooks/revenue-drop"
+
+      - alert: HighCartAbandonmentRate
+        expr: |
+          (
+            sum by (service, namespace) (rate(cart_abandonment_total[1h]))
+            /
+            sum by (service, namespace) (rate(cart_created_total[1h]))
+          ) > 0.7
+          AND
+          sum by (service, namespace) (rate(cart_created_total[1h])) > 10
+        for: 30m
+        labels:
+          severity: warning
+          alert_type: business_metric
+        annotations:
+          summary: "High cart abandonment rate"
+          description: "Service {{ $labels.service }} has cart abandonment rate of {{ $value | humanizePercentage }}."
+          runbook_url: "https://wiki.example.com/runbooks/cart-abandonment"
+
+      # Saturation Alerts
+      - alert: HighMemoryUsage
+        expr: |
+          (
+            container_memory_working_set_bytes{container!="", container!="POD"}
+            /
+            container_spec_memory_limit_bytes{container!="", container!="POD"}
+          ) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          alert_type: saturation
+        annotations:
+          summary: "High memory usage"
+          description: "Container {{ $labels.container }} in pod {{ $labels.pod }} is using {{ $value | humanizePercentage }} of memory limit."
+          runbook_url: "https://wiki.example.com/runbooks/high-memory-usage"
+
+      - alert: HighCPUUsage
+        expr: |
+          (
+            sum by (namespace, pod, container) (rate(container_cpu_usage_seconds_total{container!="", container!="POD"}[5m]))
+            /
+            sum by (namespace, pod, container) (container_spec_cpu_quota{container!="", container!="POD"} / container_spec_cpu_period{container!="", container!="POD"})
+          ) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          alert_type: saturation
+        annotations:
+          summary: "High CPU usage"
+          description: "Container {{ $labels.container }} in pod {{ $labels.pod }} is using {{ $value | humanizePercentage }} of CPU limit."
+          runbook_url: "https://wiki.example.com/runbooks/high-cpu-usage"
+
+      # Connection Pool Alerts
+      - alert: DatabaseConnectionPoolExhausted
+        expr: |
+          (
+            db_connection_pool_active_connections / db_connection_pool_max_connections
+          ) > 0.9
+        for: 5m
+        labels:
+          severity: critical
+          alert_type: saturation
+        annotations:
+          summary: "Database connection pool nearly exhausted"
+          description: "Service {{ $labels.service }} is using {{ $value | humanizePercentage }} of available database connections."
+          runbook_url: "https://wiki.example.com/runbooks/db-connection-pool"
+
+      # Queue Depth Alerts
+      - alert: HighQueueDepth
+        expr: |
+          queue_depth > 1000
+          AND
+          rate(queue_depth[5m]) > 0
+        for: 10m
+        labels:
+          severity: warning
+          alert_type: saturation
+        annotations:
+          summary: "High queue depth"
+          description: "Queue {{ $labels.queue_name }} has {{ $value }} messages backed up and is growing."
+          runbook_url: "https://wiki.example.com/runbooks/high-queue-depth"
+
+      # Circuit Breaker Alerts
+      - alert: CircuitBreakerOpen
+        expr: |
+          circuit_breaker_state == 1
+        for: 1m
+        labels:
+          severity: warning
+          alert_type: availability
+        annotations:
+          summary: "Circuit breaker open"
+          description: "Circuit breaker for {{ $labels.service }} -> {{ $labels.downstream_service }} is open."
+          runbook_url: "https://wiki.example.com/runbooks/circuit-breaker-open"
