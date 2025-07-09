@@ -3,8 +3,7 @@ package main
 import (
 	"log"
 
-	"github.com/gofiber/fiber/v2"
-	"github.com/ybke/apm/internal/routes"
+	"github.com/chaksack/apm/internal/routes"
 )
 
 func main() {

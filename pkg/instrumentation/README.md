@@ -19,13 +19,13 @@ This package provides production-ready OpenTelemetry SDK integration for Go appl
 ```go
 import (
     "context"
-    "github.com/ybke/apm/pkg/instrumentation"
+    "github.com/chaksack/apm/pkg/instrumentation"
 )
 
 // Initialize tracer
 ctx := context.Background()
 config := instrumentation.TracerConfig{
-    ServiceName:    "my-service",
+    ServiceName:    "apm",
     ServiceVersion: "1.0.0",
     Environment:    "production",
     ExporterType:   "otlp",
@@ -45,7 +45,7 @@ defer cleanup()
 ```go
 import (
     "github.com/gofiber/fiber/v2"
-    "github.com/ybke/apm/pkg/instrumentation"
+    "github.com/chaksack/apm/pkg/instrumentation"
 )
 
 app := fiber.New()

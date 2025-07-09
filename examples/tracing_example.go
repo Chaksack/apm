@@ -5,8 +5,8 @@ import (
 	"log"
 	"time"
 
+	"github.com/chaksack/apm/pkg/instrumentation"
 	"github.com/gofiber/fiber/v2"
-	"github.com/ybke/apm/pkg/instrumentation"
 )
 
 func main() {

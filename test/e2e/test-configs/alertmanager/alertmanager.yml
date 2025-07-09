@@ -1,0 +1,39 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 12h
+  receiver: 'e2e-test'
+  routes:
+    - match:
+        severity: critical
+      receiver: e2e-critical
+    - match:
+        severity: warning
+      receiver: e2e-warning
+
+receivers:
+  - name: 'e2e-test'
+    webhook_configs:
+      - url: 'http://localhost:5001/webhook'
+        send_resolved: true
+
+  - name: 'e2e-critical'
+    webhook_configs:
+      - url: 'http://localhost:5001/critical'
+        send_resolved: true
+
+  - name: 'e2e-warning'
+    webhook_configs:
+      - url: 'http://localhost:5001/warning'
+        send_resolved: true
+
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'dev', 'instance']

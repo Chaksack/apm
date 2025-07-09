@@ -64,3 +64,12 @@ rad.json
 *.flf
 #Test results file
 TestResults.xml
+
+# Security scan reports
+security-reports/
+semgrep-report*.json
+semgrep-report*.sarif
+semgrep-report*.xml
+semgrep.sarif
+gosec-results.sarif
+trivy-results.sarif

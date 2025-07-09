@@ -1,0 +1,368 @@
+rules:
+  # Security vulnerabilities in Go code
+  - id: go-hardcoded-credentials
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $KEY = "..."
+          - pattern: |
+              $KEY := "..."
+    metavariable-regex:
+      metavariable: $KEY
+      regex: '.*(password|pwd|secret|token|apikey|api_key|access_key|private_key|jwt).*'
+    message: "Hardcoded credential found. Use environment variables or secure credential management instead."
+    languages: [go]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: CWE-798
+      owasp: A03:2021 - Injection
+
+  - id: go-sql-injection
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $DB.Query($QUERY + $INPUT)
+          - pattern: |
+              $DB.Query(fmt.Sprintf($QUERY, $INPUT))
+          - pattern: |
+              $DB.Exec($QUERY + $INPUT)
+          - pattern: |
+              $DB.Exec(fmt.Sprintf($QUERY, $INPUT))
+    message: "Potential SQL injection vulnerability. Use parameterized queries instead."
+    languages: [go]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: CWE-89
+      owasp: A03:2021 - Injection
+
+  - id: go-command-injection
+    patterns:
+      - pattern-either:
+          - pattern: exec.Command($CMD, ...)
+          - pattern: exec.CommandContext(..., $CMD, ...)
+      - pattern-not: exec.Command("...", ...)
+      - pattern-not: exec.CommandContext(..., "...", ...)
+    message: "Potential command injection. Avoid using user input in exec.Command."
+    languages: [go]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: CWE-78
+      owasp: A03:2021 - Injection
+
+  - id: go-weak-crypto
+    patterns:
+      - pattern-either:
+          - pattern: md5.New()
+          - pattern: md5.Sum(...)
+          - pattern: sha1.New()
+          - pattern: sha1.Sum(...)
+          - pattern: des.NewCipher(...)
+          - pattern: rc4.NewCipher(...)
+    message: "Weak cryptographic algorithm detected. Use stronger algorithms like SHA-256 or AES."
+    languages: [go]
+    severity: WARNING
+    metadata:
+      category: security
+      cwe: CWE-327
+      owasp: A02:2021 - Cryptographic Failures
+
+  # GoFiber-specific security patterns
+  - id: gofiber-csrf-missing
+    patterns:
+      - pattern: |
+          app := fiber.New(...)
+          ...
+      - pattern-not-inside: |
+          app.Use(csrf.New(...))
+    message: "CSRF protection is not enabled. Consider adding CSRF middleware for state-changing operations."
+    languages: [go]
+    severity: WARNING
+    metadata:
+      category: security
+      framework: gofiber
+      cwe: CWE-352
+      owasp: A01:2021 - Broken Access Control
+
+  - id: gofiber-cors-wildcard
+    patterns:
+      - pattern: |
+          cors.New(cors.Config{
+            ...,
+            AllowOrigins: "*",
+            ...
+          })
+    message: "CORS is configured with wildcard origin. This may expose the API to unauthorized access."
+    languages: [go]
+    severity: WARNING
+    metadata:
+      category: security
+      framework: gofiber
+      cwe: CWE-942
+      owasp: A05:2021 - Security Misconfiguration
+
+  - id: gofiber-no-rate-limiting
+    patterns:
+      - pattern: |
+          app := fiber.New(...)
+          ...
+      - pattern-not-inside: |
+          app.Use(limiter.New(...))
+    message: "Rate limiting is not configured. Consider adding rate limiting to prevent DoS attacks."
+    languages: [go]
+    severity: INFO
+    metadata:
+      category: security
+      framework: gofiber
+      cwe: CWE-770
+      owasp: A04:2021 - Insecure Design
+
+  - id: gofiber-insecure-cookie
+    patterns:
+      - pattern: |
+          fiber.Cookie{
+            ...,
+            Secure: false,
+            ...
+          }
+    message: "Cookie is not marked as Secure. This may expose session data over unencrypted connections."
+    languages: [go]
+    severity: WARNING
+    metadata:
+      category: security
+      framework: gofiber
+      cwe: CWE-614
+      owasp: A05:2021 - Security Misconfiguration
+
+  - id: gofiber-missing-helmet
+    patterns:
+      - pattern: |
+          app := fiber.New(...)
+          ...
+      - pattern-not-inside: |
+          app.Use(helmet.New(...))
+    message: "Security headers middleware (helmet) is not configured. Consider adding it for better security."
+    languages: [go]
+    severity: INFO
+    metadata:
+      category: security
+      framework: gofiber
+      cwe: CWE-693
+      owasp: A05:2021 - Security Misconfiguration
+
+  # Code quality checks
+  - id: go-empty-error-handling
+    patterns:
+      - pattern: |
+          $ERR := $FUNC(...)
+          if $ERR != nil {
+          }
+    message: "Empty error handling detected. Properly handle or log the error."
+    languages: [go]
+    severity: WARNING
+    metadata:
+      category: code-quality
+      subcategory: error-handling
+
+  - id: go-defer-in-loop
+    patterns:
+      - pattern: |
+          for ... {
+            ...
+            defer $FUNC(...)
+            ...
+          }
+    message: "Defer in loop can cause resource exhaustion. Move defer outside the loop or handle cleanup differently."
+    languages: [go]
+    severity: WARNING
+    metadata:
+      category: code-quality
+      subcategory: resource-management
+
+  - id: go-unchecked-type-assertion
+    patterns:
+      - pattern: $X := $Y.($TYPE)
+      - pattern-not-inside: |
+          $X, $OK := $Y.($TYPE)
+    message: "Unchecked type assertion can cause panic. Use the two-value form to handle failures."
+    languages: [go]
+    severity: WARNING
+    metadata:
+      category: code-quality
+      subcategory: type-safety
+
+  - id: go-missing-context-cancel
+    patterns:
+      - pattern: |
+          $CTX, $CANCEL := context.WithCancel(...)
+          ...
+      - pattern-not-inside: |
+          defer $CANCEL()
+    message: "Context cancel function should be called to prevent context leak."
+    languages: [go]
+    severity: WARNING
+    metadata:
+      category: code-quality
+      subcategory: resource-management
+
+  # Performance anti-patterns
+  - id: go-string-concatenation-loop
+    patterns:
+      - pattern: |
+          $VAR := ""
+          for ... {
+            ...
+            $VAR += $STR
+            ...
+          }
+    message: "String concatenation in loop is inefficient. Use strings.Builder or bytes.Buffer instead."
+    languages: [go]
+    severity: INFO
+    metadata:
+      category: performance
+      subcategory: memory-efficiency
+
+  - id: go-unnecessary-slice-allocation
+    patterns:
+      - pattern: |
+          $VAR := make([]$TYPE, 0)
+          $VAR = append($VAR, ...)
+    message: "Unnecessary zero-length slice allocation. Use var declaration or specify capacity."
+    languages: [go]
+    severity: INFO
+    metadata:
+      category: performance
+      subcategory: memory-efficiency
+
+  - id: go-inefficient-regex-compile
+    patterns:
+      - pattern-either:
+          - pattern: regexp.MustCompile($PATTERN)
+          - pattern: regexp.Compile($PATTERN)
+      - pattern-inside: |
+          func $FUNC(...) {
+            ...
+          }
+      - pattern-not-inside: |
+          var ... = regexp.MustCompile(...)
+    message: "Regex compiled inside function. Move compilation to package level for better performance."
+    languages: [go]
+    severity: INFO
+    metadata:
+      category: performance
+      subcategory: cpu-efficiency
+
+  - id: go-time-after-leak
+    patterns:
+      - pattern: |
+          for ... {
+            select {
+            case ...:
+              ...
+            case <-time.After($DURATION):
+              ...
+            }
+          }
+    message: "time.After in select loop can cause memory leak. Use time.NewTimer with proper cleanup."
+    languages: [go]
+    severity: WARNING
+    metadata:
+      category: performance
+      subcategory: memory-leak
+
+  # Secret detection
+  - id: generic-api-key
+    patterns:
+      - pattern-regex: '(?i)(api[_-]?key|apikey)\s*[:=]\s*["\']?[a-zA-Z0-9]{16,}["\']?'
+    message: "Potential API key found. Remove hardcoded secrets and use secure credential management."
+    languages: [go, yaml, json, dockerfile]
+    severity: ERROR
+    metadata:
+      category: secrets
+      cwe: CWE-798
+
+  - id: aws-access-key
+    patterns:
+      - pattern-regex: 'AKIA[0-9A-Z]{16}'
+    message: "AWS Access Key ID detected. Remove and rotate this credential immediately."
+    languages: [go, yaml, json, dockerfile]
+    severity: ERROR
+    metadata:
+      category: secrets
+      provider: aws
+      cwe: CWE-798
+
+  - id: private-key
+    patterns:
+      - pattern-regex: '-----BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----'
+    message: "Private key detected. Never commit private keys to version control."
+    languages: [go, yaml, json, dockerfile]
+    severity: ERROR
+    metadata:
+      category: secrets
+      cwe: CWE-798
+
+  - id: jwt-token
+    patterns:
+      - pattern-regex: 'eyJ[a-zA-Z0-9_-]+\.eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+'
+    message: "JWT token detected. Remove hardcoded tokens and use proper authentication flow."
+    languages: [go, yaml, json, dockerfile]
+    severity: ERROR
+    metadata:
+      category: secrets
+      cwe: CWE-798
+
+  # APM-specific patterns
+  - id: apm-missing-instrumentation
+    patterns:
+      - pattern: |
+          app := fiber.New(...)
+          ...
+      - pattern-not-inside: |
+          app.Use($APM.FiberMiddleware())
+    message: "APM instrumentation middleware is not configured. Add APM middleware for observability."
+    languages: [go]
+    severity: INFO
+    metadata:
+      category: observability
+      framework: apm
+
+  - id: apm-missing-error-tracking
+    patterns:
+      - pattern: |
+          if $ERR != nil {
+            return $ERR
+          }
+      - pattern-not-inside: |
+          $LOGGER.Error(...)
+      - pattern-not-inside: |
+          span.RecordError(...)
+    message: "Error not tracked in observability. Consider logging or recording errors in spans."
+    languages: [go]
+    severity: INFO
+    metadata:
+      category: observability
+      subcategory: error-tracking
+
+  - id: apm-context-propagation
+    patterns:
+      - pattern: |
+          func $FUNC(...) {
+            ...
+            go func() {
+              ...
+            }()
+            ...
+          }
+      - pattern-not-inside: |
+          go func($CTX context.Context) {
+            ...
+          }($CTX)
+    message: "Context not propagated to goroutine. This may break distributed tracing."
+    languages: [go]
+    severity: WARNING
+    metadata:
+      category: observability
+      subcategory: distributed-tracing

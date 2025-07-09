@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/chaksack/apm/internal/midd
 	"github.com/gofiber/contrib/otelfiber"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -15,7 +16,6 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/requestid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/ybke/apm/internal/middleware"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"

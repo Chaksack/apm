@@ -1,4 +1,10 @@
-.PHONY: help build up down logs ps clean volumes restart build-app run dev test
+.PHONY: help build up down logs ps clean volumes restart build-app run dev test \
+	test-coverage lint gosec semgrep semgrep-json security-scan vulncheck \
+	sonar-scan quality-check prometheus-reload grafana-logs jaeger-ui \
+	prometheus-ui grafana-ui alertmanager-ui sample-app-logs sample-app-restart \
+	test-endpoints metrics test-e2e test-e2e-parallel test-e2e-load \
+	test-e2e-security test-e2e-monitoring test-e2e-alerts test-e2e-integration \
+	test-e2e-report
 
 # Default target
 .DEFAULT_GOAL := help
@@ -98,3 +104,74 @@ test-endpoints: ## Test sample app endpoints
 
 metrics: ## View sample app metrics
 	curl -s http://localhost:8081/metrics | grep -E "^(http_|go_|process_)"
+
+# Security and Quality commands
+lint: ## Run golangci-lint
+	@if ! command -v golangci-lint &> /dev/null; then \
+		echo "golangci-lint is not installed. Installing..."; \
+		go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest; \
+	fi
+	golangci-lint run
+
+gosec: ## Run gosec security scanner
+	@if ! command -v gosec &> /dev/null; then \
+		echo "gosec is not installed. Installing..."; \
+		go install github.com/securego/gosec/v2/cmd/gosec@latest; \
+	fi
+	gosec ./...
+
+semgrep: ## Run Semgrep security analysis
+	@if ! command -v semgrep &> /dev/null; then \
+		echo "Semgrep is not installed. Please install it:"; \
+		echo "  pip install semgrep"; \
+		echo "  or: brew install semgrep"; \
+		exit 1; \
+	fi
+	./scripts/semgrep-scan.sh
+
+semgrep-json: ## Run Semgrep and output JSON report
+	./scripts/semgrep-scan.sh --format json --output security-reports/semgrep-report.json
+
+security-scan: lint gosec semgrep ## Run all security scans
+
+vulncheck: ## Run Go vulnerability check
+	@if ! command -v govulncheck &> /dev/null; then \
+		echo "govulncheck is not installed. Installing..."; \
+		go install golang.org/x/vuln/cmd/govulncheck@latest; \
+	fi
+	govulncheck ./...
+
+sonar-scan: ## Run SonarQube scan
+	./scripts/sonar-scan.sh
+
+quality-check: test-coverage lint security-scan ## Run all quality checks
+
+# E2E Testing commands
+test-e2e: ## Run all E2E tests sequentially
+	cd test/e2e && make test
+
+test-e2e-parallel: ## Run E2E tests in parallel
+	cd test/e2e && ./scripts/run_parallel_tests.sh all
+
+test-e2e-load: ## Run load testing scenario
+	cd test/e2e && ./scripts/run_parallel_tests.sh load
+
+test-e2e-security: ## Run security testing scenario
+	cd test/e2e && ./scripts/run_parallel_tests.sh security
+
+test-e2e-monitoring: ## Run monitoring pipeline tests
+	cd test/e2e && ./scripts/run_parallel_tests.sh monitoring
+
+test-e2e-alerts: ## Run alert testing scenario
+	cd test/e2e && ./scripts/run_parallel_tests.sh alerts
+
+test-e2e-integration: ## Run full integration tests
+	cd test/e2e && ./scripts/run_parallel_tests.sh integration
+
+test-e2e-report: ## Generate E2E test report
+	@echo "Generating E2E test report..."
+	@if [ -f test/e2e/test-report.json ]; then \
+		cd test/e2e && go run -tags=report ./report_generator.go; \
+	else \
+		echo "No test report found. Run tests first."; \
+	fi

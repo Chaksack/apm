@@ -18,6 +18,7 @@ This directory contains automation scripts for the APM stack deployment, configu
 | `performance-test.sh` | Run performance tests | `./performance-test.sh [--load-test]` | curl, ab |
 | `cleanup-resources.sh` | Clean up unused resources | `./cleanup-resources.sh [--dry-run]` | kubectl, docker |
 | `update-certificates.sh` | Update SSL certificates | `./update-certificates.sh` | openssl, kubectl |
+| `semgrep-scan.sh` | Run Semgrep security analysis | `./semgrep-scan.sh [--format json]` | semgrep, jq |
 
 ## Script Usage Examples
 
@@ -422,6 +423,74 @@ main "$@"
 - `--duration TIME`: Test duration
 - `--rps N`: Requests per second
 
+### 7. semgrep-scan.sh
+
+**Purpose**: Run Semgrep static application security testing (SAST) on the codebase
+
+**Basic Usage**:
+```bash
+# Run basic security scan
+./semgrep-scan.sh
+
+# Output results in JSON format
+./semgrep-scan.sh --format json --output security-report.json
+
+# Scan with specific severity level
+./semgrep-scan.sh --severity ERROR
+
+# Run quietly (suppress non-error output)
+./semgrep-scan.sh --quiet
+```
+
+**Parameters**:
+- `-c, --config <file>`: Use custom Semgrep config file (default: .semgrep.yml)
+- `-f, --format <format>`: Output format: text, json, sarif, junit (default: text)
+- `-s, --severity <level>`: Minimum severity level: INFO, WARNING, ERROR (default: all)
+- `-o, --output <file>`: Output file path (default: stdout)
+- `-q, --quiet`: Suppress non-error output
+- `-h, --help`: Show help message
+
+**Example Output**:
+```
+[INFO] Running Semgrep security scan...
+Command: semgrep --config=./.semgrep.yml .
+
+rule:go-hardcoded-credentials
+  Hardcoded credential found. Use environment variables or secure credential management instead.
+  24: apiKey := "sk-1234567890abcdef"
+
+rule:gofiber-csrf-missing
+  CSRF protection is not enabled. Consider adding CSRF middleware for state-changing operations.
+  15: app := fiber.New()
+
+Scan Summary:
+Total findings: 5
+  - Errors: 2
+  - Warnings: 2
+  - Info: 1
+
+Top violated rules:
+  - go-hardcoded-credentials: 2 findings
+  - gofiber-csrf-missing: 1 findings
+  - go-empty-error-handling: 1 findings
+  - apm-missing-instrumentation: 1 findings
+
+✓ Security scan completed successfully
+Report saved to: ./security-reports/semgrep-report-20241215_143022.json
+```
+
+**Integration with CI/CD**:
+```bash
+# Use in GitHub Actions
+./semgrep-scan.sh --format sarif --output semgrep.sarif
+
+# Use in GitLab CI
+./semgrep-scan.sh --format json --output semgrep-report.json
+
+# Fail build on errors only
+./semgrep-scan.sh --severity ERROR || exit 1
+```
+
 ## Parameter Documentation
 
 ### Common Parameters
@@ -537,11 +606,24 @@ curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 brew install curl jq kubectl helm docker
 ```
 
+### Security Tools
+```bash
+# Install Semgrep
+pip install semgrep
+# or
+brew install semgrep
+# or
+docker pull returntocorp/semgrep
+
+# Other security tools
+go install github.com/securego/gosec/v2/cmd/gosec@latest
+```
+
 ### Go Dependencies
 ```bash
 # For scripts that interact with Go applications
-go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
 go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+go install golang.org/x/vuln/cmd/govulncheck@latest
 ```
 
 ### Python Dependencies

@@ -29,10 +29,10 @@ func main() {
 			if e, ok := err.(*fiber.Error); ok {
 				code = e.Code
 			}
-			
+
 			log.Printf("ERROR: status=%d method=%s path=%s error=%v",
 				code, c.Method(), c.Path(), err)
-			
+
 			return c.Status(code).JSON(fiber.Map{
 				"error": err.Error(),
 			})
@@ -43,7 +43,7 @@ func main() {
 	app.Use(recover.New(recover.Config{
 		EnableStackTrace: true,
 	}))
-	
+
 	// Structured logging middleware
 	app.Use(logger.New(logger.Config{
 		Format:     "[${time}] ${status} - ${latency} ${method} ${path}\n",
@@ -77,7 +77,7 @@ func main() {
 		if port == "" {
 			port = "8080"
 		}
-		
+
 		log.Printf("Starting server on port %s", port)
 		if err := app.Listen(":" + port); err != nil {
 			log.Fatalf("Failed to start server: %v", err)

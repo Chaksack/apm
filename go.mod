@@ -1,6 +1,10 @@
-module github.com/ybke/apm
+module github.com/chaksack/apm
 
 go 1.23.0
+
+// GoFiber APM - Application Performance Monitoring solution for GoFiber applications
+// This package provides comprehensive observability for GoFiber applications including
+// metrics collection, distributed tracing, structured logging, and health checks.
 
 toolchain go1.24.4
 

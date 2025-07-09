@@ -24,7 +24,14 @@ graph TB
         D --> D1[Unit Tests]
         D --> D2[Code Coverage]
         D --> D3[Linting]
-        D --> D4[Security Scan]
+        D --> D4[SonarQube Analysis]
+    end
+    
+    subgraph "Security Scans"
+        E --> E1[Semgrep SAST]
+        E --> E2[Trivy Scanning]
+        E --> E3[Gosec Analysis]
+        E --> E4[Secret Detection]
     end
     
     subgraph "Environments"
@@ -72,13 +79,21 @@ graph TB
 - **Requirements**: See [Quality Gates Documentation](quality-gates.md)
 
 ### 5. Security Scan Stage
-- **Duration**: ~1-2 minutes
+- **Duration**: ~2-3 minutes
 - **Actions**:
+  - Static application security testing (Semgrep)
   - Container image scanning (Trivy)
+  - Go security analysis (Gosec)
   - Dependency vulnerability assessment
   - Secret detection
   - License compliance check
-- **Failure Conditions**: Critical vulnerabilities, license violations
+- **Tools**:
+  - **Semgrep**: Custom security rules for Go and GoFiber
+  - **Trivy**: Container and filesystem vulnerability scanning
+  - **Gosec**: Go-specific security analysis
+  - **Govulncheck**: Go vulnerability database checks
+- **Failure Conditions**: Critical vulnerabilities, hardcoded secrets, license violations
+- **Documentation**: [Semgrep Security Guide](security/semgrep.md)
 
 ### 6. Build Docker Images Stage
 - **Duration**: ~3-5 minutes

@@ -230,6 +230,20 @@ security:dependency-check:
     expire_in: 1 week
   allow_failure: true
 
+security:semgrep:
+  stage: security
+  image: returntocorp/semgrep:latest
+  script:
+    - semgrep --config=./.semgrep.yml --json --output=semgrep-report.json . || true
+    - semgrep --config=./.semgrep.yml --verbose .
+  artifacts:
+    reports:
+      sast: semgrep-report.json
+    paths:
+      - semgrep-report.json
+    expire_in: 1 week
+  allow_failure: true
+
 # Helm chart packaging
 helm:package:
   stage: build
