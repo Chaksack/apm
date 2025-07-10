@@ -45,9 +45,17 @@ func init() {
 	rootCmd.AddCommand(commands.TestCmd)
 	rootCmd.AddCommand(commands.DashboardCmd)
 	rootCmd.AddCommand(commands.DeployCmd)
+	rootCmd.AddCommand(commands.LogsCmd)
+	rootCmd.AddCommand(commands.StatusCmd)
 
 	// Configure root command
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
 	rootCmd.SetVersionTemplate(`{{.Name}} {{.Version}}
 `)
+
+	// Add global flags
+	rootCmd.PersistentFlags().String("config", "apm.yaml", "Path to configuration file")
+	rootCmd.PersistentFlags().Bool("json", false, "Output in JSON format")
+	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "Enable verbose output")
+	rootCmd.PersistentFlags().Bool("no-color", false, "Disable colored output")
 }

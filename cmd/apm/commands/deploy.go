@@ -20,6 +20,12 @@ Supports Docker containers and Kubernetes deployments across AWS, Azure, and Goo
 	RunE: runDeploy,
 }
 
+var (
+	dryRun         bool
+	deploymentName string
+	autoApprove    bool
+)
+
 // Deployment wizard states
 type deployScreen int
 
@@ -97,6 +103,9 @@ type deployWizard struct {
 	apmConfig map[string]interface{}
 	injectAPM bool
 
+	// Deployment options
+	isDryRun bool
+
 	// Deployment status
 	deploymentStatus []string
 	deploymentError  error
@@ -125,6 +134,7 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 		availableRegions:    []string{},
 		availableClusters:   []*Cluster{},
 		availableRegistries: []*Registry{},
+		isDryRun:            dryRun,
 	}
 
 	// Run the wizard
@@ -136,6 +146,12 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 
 	// Check if deployment completed
 	if m, ok := finalModel.(*deployWizard); ok && m.completed {
+		// If dry-run, show the deployment plan
+		if dryRun {
+			fmt.Println(generateDryRunReport(m))
+			return nil
+		}
+
 		fmt.Println("\n✅ Deployment completed successfully!")
 		fmt.Println("\nNext steps:")
 		fmt.Println("  1. Run 'apm status' to check deployment status")
@@ -1152,4 +1168,7 @@ func init() {
 	DeployCmd.Flags().StringP("config", "c", "apm.yaml", "Path to APM configuration file")
 	DeployCmd.Flags().BoolP("no-apm", "n", false, "Deploy without APM instrumentation")
 	DeployCmd.Flags().StringP("environment", "e", "production", "Deployment environment")
+	DeployCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview deployment without executing")
+	DeployCmd.Flags().StringVar(&deploymentName, "name", "", "Custom deployment name")
+	DeployCmd.Flags().BoolVar(&autoApprove, "auto-approve", false, "Skip confirmation prompts")
 }

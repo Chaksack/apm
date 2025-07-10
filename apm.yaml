@@ -1,0 +1,27 @@
+# APM Configuration File
+project:
+  name: my-gofiber-app
+  version: 1.0.0
+  description: Sample GoFiber application with APM
+
+application:
+  port: 3000
+  log_path: ./app.log
+  
+apm:
+  prometheus:
+    enabled: true
+    port: 9090
+  grafana:
+    enabled: true
+    port: 3000
+  jaeger:
+    enabled: true
+    port: 16686
+  loki:
+    enabled: false
+    port: 3100
+    
+deployment:
+  kubernetes:
+    namespace: default

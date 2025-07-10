@@ -1,0 +1,8 @@
+2025-07-10T21:45:00.123Z INFO Starting GoFiber application...
+2025-07-10T21:45:01.456Z INFO Server listening on port 3000
+2025-07-10T21:45:02.789Z DEBUG Connected to database successfully
+2025-07-10T21:45:03.012Z INFO APM instrumentation initialized
+2025-07-10T21:45:04.345Z WARN High memory usage detected: 85%
+2025-07-10T21:45:05.678Z ERROR Failed to connect to external API: timeout
+2025-07-10T21:45:06.901Z INFO Request processed: GET /api/users (45ms)
+2025-07-10T21:45:07.234Z INFO Request processed: POST /api/orders (120ms)
