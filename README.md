@@ -4,6 +4,19 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/chaksack/apm)](https://goreportcard.com/report/github.com/chaksack/apm)
 [![Semgrep](https://img.shields.io/badge/Semgrep-Enabled-green.svg)](https://semgrep.dev/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![GoFiber](https://img.shields.io/badge/GoFiber-v2.52.0-00ACD7.svg)](https://github.com/gofiber/fiber)
+[![Prometheus](https://img.shields.io/badge/Prometheus-v1.18.0-E6522C.svg)](https://github.com/prometheus/client_golang)
+[![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-v1.37.0-425CC1.svg)](https://github.com/open-telemetry/opentelemetry-go)
+[![Zap](https://img.shields.io/badge/Zap-v1.26.0-2088FF.svg)](https://github.com/uber-go/zap)
+[![Viper](https://img.shields.io/badge/Viper-v1.20.1-5C7CFA.svg)](https://github.com/spf13/viper)
+[![Testify](https://img.shields.io/badge/Testify-v1.10.0-9A76C9.svg)](https://github.com/stretchr/testify)
+[![UUID](https://img.shields.io/badge/UUID-v1.6.0-FFC107.svg)](https://github.com/google/uuid)
+[![FastHTTP](https://img.shields.io/badge/FastHTTP-v1.51.0-00B0D8.svg)](https://github.com/valyala/fasthttp)
+[![Grafana](https://img.shields.io/badge/Grafana-Supported-F46800.svg)](https://grafana.com/)
+[![Jaeger](https://img.shields.io/badge/Jaeger-Supported-66CFE3.svg)](https://www.jaegertracing.io/)
+[![Loki](https://img.shields.io/badge/Loki-Supported-FF5A00.svg)](https://grafana.com/oss/loki/)
+[![AlertManager](https://img.shields.io/badge/AlertManager-Supported-E6522C.svg)](https://prometheus.io/docs/alerting/latest/alertmanager/)
+[![Istio](https://img.shields.io/badge/Istio-Supported-466BB0.svg)](https://istio.io/)
 
 A comprehensive Application Performance Monitoring (APM) solution specifically designed for [GoFiber](https://gofiber.io/) applications. This package provides out-of-the-box observability including metrics collection, distributed tracing, structured logging, and health checks.
 
@@ -104,7 +117,7 @@ app.Get("/users/:id", func(c *fiber.Ctx) error {
     // Add custom spans:
     ctx, span := tracer.Start(c.UserContext(), "get-user")
     defer span.End()
-    
+
     // Your business logic here
     return c.JSON(user)
 })
@@ -191,6 +204,20 @@ Works seamlessly with the complete observability stack:
 - **AlertManager** - Alert routing and notifications
 - **Istio** - Service mesh observability
 
+## Dependencies
+
+This package uses the following open-source libraries:
+
+- [GoFiber](https://github.com/gofiber/fiber) - Fast HTTP web framework
+- [GoFiber Adaptor](https://github.com/gofiber/adaptor) - HTTP handler adapters for Fiber
+- [Prometheus Client](https://github.com/prometheus/client_golang) - Prometheus instrumentation library
+- [OpenTelemetry](https://github.com/open-telemetry/opentelemetry-go) - Distributed tracing framework
+- [Zap](https://github.com/uber-go/zap) - Structured logging library
+- [Viper](https://github.com/spf13/viper) - Configuration management
+- [Testify](https://github.com/stretchr/testify) - Testing toolkit
+- [UUID](https://github.com/google/uuid) - UUID generation
+- [FastHTTP](https://github.com/valyala/fasthttp) - Fast HTTP package for Go
+
 ## Testing
 
 The package includes comprehensive testing utilities:
@@ -199,10 +226,10 @@ The package includes comprehensive testing utilities:
 func TestMyHandler(t *testing.T) {
     // Use test collector for metrics
     collector := apm.NewTestCollector()
-    
+
     // Use test tracer for tracing
     tracer := apm.NewTestTracer()
-    
+
     // Test your handlers
     app := apm.NewTestApp()
     // ... test assertions
@@ -219,6 +246,11 @@ func TestMyHandler(t *testing.T) {
 ## Contributing
 
 Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) for details.
+
+## Authors
+
+- **Andrew Chakdahah** - [chakdahah@gmail.com](mailto:chakdahah@gmail.com)
+- **Yaw Boateng Kessie** - [ybkess@gmail.com](mailto:ybkess@gmail.com)
 
 ## License
 
