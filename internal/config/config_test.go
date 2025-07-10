@@ -76,8 +76,23 @@ func TestLoadConfigWithEnvironmentVariables(t *testing.T) {
 		os.Unsetenv("APM_KUBERNETES_NAMESPACE")
 	}()
 
-	// Load config with environment variables (no config file)
-	cfg, err := LoadConfig("nonexistent.yaml")
+	// Create a temporary config file for testing
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "test_config.yaml")
+
+	// Create a minimal config file
+	configContent := `
+prometheus:
+  endpoint: "http://default-prometheus:9090"
+grafana:
+  endpoint: "http://default-grafana:3000"
+`
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("Failed to create test config file: %v", err)
+	}
+
+	// Load config with environment variables
+	cfg, err := LoadConfig(configPath)
 	if err != nil {
 		t.Fatalf("Failed to load config: %v", err)
 	}
@@ -97,13 +112,26 @@ func TestLoadConfigWithEnvironmentVariables(t *testing.T) {
 }
 
 func TestLoadConfigDefaults(t *testing.T) {
-	// Load config without file (use defaults)
-	cfg, err := LoadConfig("nonexistent.yaml")
+	// Create a temporary config file for testing with minimal content
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "test_config.yaml")
+
+	// Create a minimal config file with only a few settings
+	configContent := `
+server:
+  port: ":9090"
+`
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("Failed to create test config file: %v", err)
+	}
+
+	// Load config with minimal file (should use defaults for unspecified values)
+	cfg, err := LoadConfig(configPath)
 	if err != nil {
 		t.Fatalf("Failed to load config: %v", err)
 	}
 
-	// Verify default values
+	// Verify default values for unspecified fields
 	if cfg.Prometheus.Endpoint != "http://localhost:9090" {
 		t.Errorf("Expected default Prometheus endpoint 'http://localhost:9090', got '%s'", cfg.Prometheus.Endpoint)
 	}
@@ -122,5 +150,10 @@ func TestLoadConfigDefaults(t *testing.T) {
 
 	if !cfg.ServiceDiscovery.Enabled {
 		t.Error("Expected service discovery to be enabled by default")
+	}
+
+	// Verify the specified value was loaded correctly
+	if cfg.Server.Port != ":9090" {
+		t.Errorf("Expected server port ':9090', got '%s'", cfg.Server.Port)
 	}
 }

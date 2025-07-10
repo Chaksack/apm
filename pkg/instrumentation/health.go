@@ -158,13 +158,14 @@ func HTTPHealthCheck(name, url string, timeout time.Duration) HealthCheckFunc {
 			},
 		}
 
-		// Create a context with timeout
-		reqCtx, cancel := context.WithTimeout(ctx, timeout)
-		defer cancel()
-
 		// Make HTTP request
-		agent := fiber.Get(url)
-		agent.Context(reqCtx)
+		agent := fiber.AcquireAgent()
+		req := agent.Request()
+		req.Header.SetMethod(fiber.MethodGet)
+		req.SetRequestURI(url)
+
+		// Set timeout using the agent's configuration
+		agent.Timeout(timeout)
 
 		statusCode, _, errs := agent.Bytes()
 		duration := time.Since(start)

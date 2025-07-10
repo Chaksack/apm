@@ -137,10 +137,20 @@ func LoadConfig(configPath string) (*Config, error) {
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.AutomaticEnv()
 
+	// Explicitly bind environment variables for critical settings
+	v.BindEnv("prometheus.endpoint", "APM_PROMETHEUS_ENDPOINT")
+	v.BindEnv("grafana.api_key", "APM_GRAFANA_API_KEY")
+	v.BindEnv("kubernetes.namespace", "APM_KUBERNETES_NAMESPACE")
+
 	// Read config file
 	if err := v.ReadInConfig(); err != nil {
+		// Check if it's a file not found error
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			return nil, fmt.Errorf("error reading config file: %w", err)
+			// For explicitly provided config files, we should still allow falling back to defaults
+			// if the file doesn't exist, but report other errors
+			if configPath != "" && !strings.Contains(err.Error(), "no such file or directory") {
+				return nil, fmt.Errorf("error reading config file: %w", err)
+			}
 		}
 		// Config file not found; use defaults and environment variables
 	}
