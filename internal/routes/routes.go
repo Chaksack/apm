@@ -37,4 +37,9 @@ func SetupRoutes(app *fiber.App) {
 	// API v1 routes
 	api := app.Group("/api/v1")
 	api.Get("/status", handlers.Status)
+
+	// Tools routes
+	tools := app.Group("/tools")
+	tools.Get("/", handlers.ListTools)
+	tools.Get("/:tool", handlers.RedirectToTool)
 }

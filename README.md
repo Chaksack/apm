@@ -204,6 +204,26 @@ Works seamlessly with the complete observability stack:
 - **AlertManager** - Alert routing and notifications
 - **Istio** - Service mesh observability
 
+### Accessing Monitoring Tools
+
+The APM service provides convenient routes to access all monitoring tools:
+
+```
+# List all available monitoring tools
+GET /tools/
+
+# Access specific monitoring tools
+GET /tools/prometheus    # Prometheus UI
+GET /tools/grafana       # Grafana dashboards
+GET /tools/jaeger        # Jaeger UI for distributed tracing
+GET /tools/loki          # Loki logs
+GET /tools/alertmanager  # AlertManager UI
+GET /tools/cadvisor      # cAdvisor for container metrics
+GET /tools/node-exporter # Node Exporter metrics
+```
+
+These routes provide redirects to the appropriate tool interfaces, making it easy to navigate between different components of your observability stack.
+
 ## Dependencies
 
 This package uses the following open-source libraries:
