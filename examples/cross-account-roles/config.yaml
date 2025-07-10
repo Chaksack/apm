@@ -1,0 +1,298 @@
+# Cross-Account Role Assumption Configuration Example
+# This file demonstrates various multi-account setup configurations for the APM tool
+
+# Organization-level configuration
+organization: "My Company APM Platform"
+masterAccount: "123456789012"  # Organization's master/management account
+defaultRegion: "us-east-1"
+defaultSessionDuration: 3600  # 1 hour default
+
+# Global tags applied to all sessions
+globalTags:
+  Application: "APM"
+  Team: "Platform Engineering"
+  ManagedBy: "APM-Tool"
+
+# Multi-account configuration
+accounts:
+  # Development Account Configuration
+  - accountId: "111111111111"
+    accountName: "APM Development"
+    environment: "dev"
+    defaultRegion: "us-west-2"
+    sessionDuration: 3600  # 1 hour for dev
+    roles:
+      # Developer Role - Full access for development
+      - roleName: "APMDeveloperRole"
+        roleArn: "arn:aws:iam::111111111111:role/APMDeveloperRole"
+        description: "Full access role for APM development"
+        sessionDuration: 3600
+        tags:
+          Purpose: "Development"
+          Access: "Full"
+      
+      # Read-Only Role - For monitoring dashboards
+      - roleName: "APMReadOnlyRole"
+        roleArn: "arn:aws:iam::111111111111:role/APMReadOnlyRole"
+        description: "Read-only access for monitoring"
+        sessionDuration: 1800  # 30 minutes
+        tags:
+          Purpose: "Monitoring"
+          Access: "ReadOnly"
+
+  # Staging Account Configuration
+  - accountId: "222222222222"
+    accountName: "APM Staging"
+    environment: "staging"
+    defaultRegion: "us-east-1"
+    sessionDuration: 1800  # 30 minutes for staging
+    roles:
+      # Staging Deployment Role
+      - roleName: "APMStagingDeployRole"
+        roleArn: "arn:aws:iam::222222222222:role/APMStagingDeployRole"
+        description: "Deployment role for staging environment"
+        sessionDuration: 1800
+        externalId: "staging-deploy-external-id"  # External ID for added security
+        tags:
+          Purpose: "Deployment"
+          Environment: "Staging"
+      
+      # Staging Admin Role with MFA
+      - roleName: "APMStagingAdminRole"
+        roleArn: "arn:aws:iam::222222222222:role/APMStagingAdminRole"
+        description: "Admin access for staging (requires MFA)"
+        mfaRequired: true
+        sessionDuration: 900  # 15 minutes for MFA sessions
+        tags:
+          Purpose: "Administration"
+          SecurityLevel: "High"
+
+  # Production Account Configuration
+  - accountId: "333333333333"
+    accountName: "APM Production"
+    environment: "prod"
+    defaultRegion: "us-east-1"
+    mfaRequired: true  # All prod roles require MFA by default
+    sessionDuration: 900  # 15 minutes for production
+    externalId: "prod-global-external-id"  # Global external ID for production
+    roles:
+      # Production Read-Only Role
+      - roleName: "APMProductionReadRole"
+        roleArn: "arn:aws:iam::333333333333:role/APMProductionReadRole"
+        description: "Read-only access to production resources"
+        mfaRequired: false  # Override for read-only
+        sessionDuration: 1800  # 30 minutes for read-only
+        tags:
+          Purpose: "Monitoring"
+          Access: "ReadOnly"
+          Environment: "Production"
+      
+      # Production Operations Role
+      - roleName: "APMProductionOpsRole"
+        roleArn: "arn:aws:iam::333333333333:role/APMProductionOpsRole"
+        description: "Operations access for incident response"
+        mfaRequired: true
+        sessionDuration: 900
+        externalId: "prod-ops-external-id"
+        policyArns:
+          - "arn:aws:iam::aws:policy/ReadOnlyAccess"
+          - "arn:aws:iam::333333333333:policy/APMOperationsPolicy"
+        tags:
+          Purpose: "Operations"
+          OnCall: "true"
+      
+      # Production Admin Role (Emergency Use)
+      - roleName: "APMProductionAdminRole"
+        roleArn: "arn:aws:iam::333333333333:role/APMProductionAdminRole"
+        description: "Emergency admin access (requires MFA + external ID)"
+        mfaRequired: true
+        sessionDuration: 600  # 10 minutes only
+        externalId: "prod-admin-break-glass-id"
+        sourceIdentity: "required"  # Requires source identity for audit
+        tags:
+          Purpose: "EmergencyAccess"
+          SecurityLevel: "Critical"
+          RequiresApproval: "true"
+
+  # Partner/Vendor Account Configuration
+  - accountId: "444444444444"
+    accountName: "APM Partner Integration"
+    environment: "partner"
+    defaultRegion: "eu-west-1"
+    sessionDuration: 3600
+    externalId: "partner-integration-external-id"  # Required for all partner roles
+    roles:
+      # Partner Integration Role
+      - roleName: "APMPartnerAccessRole"
+        roleArn: "arn:aws:iam::444444444444:role/APMPartnerAccessRole"
+        description: "Partner access for third-party integrations"
+        sessionDuration: 3600
+        externalId: "unique-partner-external-id-456"
+        transitiveTagKeys:
+          - "PartnerName"
+          - "IntegrationType"
+        tags:
+          PartnerName: "DataDog"
+          IntegrationType: "Monitoring"
+          Access: "Limited"
+
+  # Cross-Region Disaster Recovery Account
+  - accountId: "555555555555"
+    accountName: "APM Disaster Recovery"
+    environment: "dr"
+    defaultRegion: "eu-central-1"  # Different region for DR
+    sessionDuration: 1800
+    roles:
+      # DR Replication Role
+      - roleName: "APMDisasterRecoveryRole"
+        roleArn: "arn:aws:iam::555555555555:role/APMDisasterRecoveryRole"
+        description: "Cross-region replication and DR operations"
+        sessionDuration: 1800
+        regions:  # Multi-region support
+          - "eu-central-1"
+          - "ap-southeast-1"
+          - "us-west-2"
+        tags:
+          Purpose: "DisasterRecovery"
+          RPO: "1hour"
+          RTO: "4hours"
+
+# Role Chain Configurations
+# Define common role chains for multi-hop access patterns
+roleChains:
+  # Development to Production Deployment Chain
+  - name: "dev-to-prod-deployment"
+    description: "Deploy from development through staging to production"
+    steps:
+      - roleArn: "arn:aws:iam::111111111111:role/APMDeveloperRole"
+        sessionName: "dev-build-step"
+      - roleArn: "arn:aws:iam::222222222222:role/APMStagingDeployRole"
+        sessionName: "staging-test-step"
+        externalId: "staging-deploy-external-id"
+      - roleArn: "arn:aws:iam::333333333333:role/APMProductionOpsRole"
+        sessionName: "prod-deploy-step"
+        externalId: "prod-ops-external-id"
+        mfaRequired: true
+
+  # Security Audit Chain
+  - name: "security-audit-chain"
+    description: "Cross-account security audit access"
+    steps:
+      - roleArn: "arn:aws:iam::123456789012:role/SecurityAuditRole"
+        sessionName: "audit-init"
+      - roleArn: "arn:aws:iam::333333333333:role/APMProductionReadRole"
+        sessionName: "prod-audit"
+        tags:
+          AuditReason: "Compliance"
+          AuditID: "AUD-2025-001"
+
+# Session Management Configuration
+sessionManagement:
+  # Credential caching settings
+  credentialCache:
+    enabled: true
+    ttl: 900  # 15 minutes
+    encryptionEnabled: true
+    storageLocation: "~/.apm/credentials/cache"
+  
+  # Automatic refresh settings
+  autoRefresh:
+    enabled: true
+    threshold: 300  # Refresh when 5 minutes remaining
+    maxRetries: 3
+    retryDelay: 5  # seconds
+  
+  # Session limits
+  limits:
+    maxConcurrentSessions: 10
+    maxSessionsPerAccount: 3
+    maxSessionDuration: 3600  # Global maximum
+
+# Security Configuration
+security:
+  # MFA settings
+  mfa:
+    defaultRequired: false
+    productionRequired: true
+    deviceTypes:
+      - "virtual"
+      - "hardware"
+    tokenValidityWindow: 30  # seconds
+  
+  # External ID settings
+  externalId:
+    required: true
+    minLength: 16
+    pattern: "^[a-zA-Z0-9-_]+$"
+    rotationDays: 90
+  
+  # Audit logging
+  audit:
+    enabled: true
+    logLevel: "info"
+    destinations:
+      - type: "file"
+        path: "/var/log/apm/cross-account-audit.log"
+      - type: "cloudwatch"
+        logGroup: "/aws/apm/cross-account"
+      - type: "s3"
+        bucket: "apm-audit-logs"
+        prefix: "cross-account/"
+
+# Notification Configuration
+notifications:
+  # Alert on role assumption failures
+  onFailure:
+    enabled: true
+    channels:
+      - type: "slack"
+        webhook: "${SLACK_WEBHOOK_URL}"
+        channel: "#apm-alerts"
+      - type: "email"
+        to: "apm-team@company.com"
+  
+  # Alert on suspicious activity
+  securityAlerts:
+    enabled: true
+    conditions:
+      - "multiple_failed_attempts"
+      - "unusual_access_pattern"
+      - "emergency_role_usage"
+
+# Compliance and Governance
+compliance:
+  # Required tags for all sessions
+  requiredTags:
+    - "CostCenter"
+    - "Project"
+    - "Owner"
+  
+  # Prohibited actions
+  deniedActions:
+    - "iam:DeleteRole"
+    - "iam:CreateAccessKey"
+    - "ec2:TerminateInstances"
+  
+  # Compliance standards
+  standards:
+    - "SOC2"
+    - "ISO27001"
+    - "PCI-DSS"
+
+# Environment-specific overrides
+environmentOverrides:
+  development:
+    sessionDuration: 7200  # 2 hours for dev
+    mfaRequired: false
+    autoRefresh: true
+  
+  staging:
+    sessionDuration: 3600  # 1 hour for staging
+    mfaRequired: false
+    externalIdRequired: true
+  
+  production:
+    sessionDuration: 900  # 15 minutes for prod
+    mfaRequired: true
+    externalIdRequired: true
+    sourceIdentityRequired: true

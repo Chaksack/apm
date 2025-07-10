@@ -23,7 +23,7 @@ import (
 )
 
 // SetupRoutes configures all application routes
-func SetupRoutes(app *fiber.App) {
+func SetupRoutes(app *fiber.App) error {
 	// Middleware
 	app.Use(logger.New())
 	app.Use(recover.New())
@@ -38,8 +38,23 @@ func SetupRoutes(app *fiber.App) {
 	api := app.Group("/api/v1")
 	api.Get("/status", handlers.Status)
 
+	// Create tool handlers
+	toolHandlers, err := handlers.NewToolHandlers()
+	if err != nil {
+		return err
+	}
+
 	// Tools routes
 	tools := app.Group("/tools")
-	tools.Get("/", handlers.ListTools)
-	tools.Get("/:tool", handlers.RedirectToTool)
+	tools.Get("/", toolHandlers.ListTools)
+	tools.Get("/detect", toolHandlers.DetectTools)
+	tools.Get("/ports", toolHandlers.GetAllocatedPorts)
+	tools.Get("/port-registry", toolHandlers.GetPortRegistry)
+	tools.Post("/allocate-port", toolHandlers.AllocatePort)
+	tools.Get("/:tool", toolHandlers.RedirectToTool)
+	tools.Get("/:tool/health", toolHandlers.GetToolHealth)
+	tools.Get("/:tool/config", toolHandlers.GetToolConfig)
+	tools.Post("/:tool/config", toolHandlers.GetToolConfig)
+
+	return nil
 }

@@ -1,0 +1,150 @@
+version: "1.0"
+target:
+  type: docker
+  platform:
+    composeFile: docker-compose.apm.yml
+    network: apm-network
+
+environment: development
+
+components:
+  - name: prometheus
+    enabled: true
+    version: "latest"
+    replicas: 1
+    resources:
+      requests:
+        cpu: "1"
+        memory: "2Gi"
+      limits:
+        cpu: "2"
+        memory: "4Gi"
+    storage:
+      size: "10Gi"
+      persistent: true
+    config:
+      retention: "7d"
+      scrapeInterval: "30s"
+    ports:
+      - name: http
+        port: 9090
+
+  - name: grafana
+    enabled: true
+    version: "latest"
+    replicas: 1
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "1Gi"
+      limits:
+        cpu: "1"
+        memory: "2Gi"
+    storage:
+      size: "1Gi"
+      persistent: true
+    config:
+      adminUser: "admin"
+      adminPassword: "admin123"
+    ports:
+      - name: http
+        port: 3000
+
+  - name: loki
+    enabled: true
+    version: "latest"
+    replicas: 1
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "1Gi"
+      limits:
+        cpu: "1"
+        memory: "2Gi"
+    storage:
+      size: "5Gi"
+      persistent: true
+    config:
+      retention: "72h"
+    ports:
+      - name: http
+        port: 3100
+
+  - name: jaeger
+    enabled: true
+    version: "latest"
+    replicas: 1
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "1Gi"
+      limits:
+        cpu: "1"
+        memory: "2Gi"
+    storage:
+      size: "5Gi"
+      persistent: true
+    config:
+      spanStorageType: "memory"
+    ports:
+      - name: ui
+        port: 16686
+      - name: collector
+        port: 14268
+      - name: otlp
+        port: 4317
+
+  - name: alertmanager
+    enabled: true
+    version: "latest"
+    replicas: 1
+    resources:
+      requests:
+        cpu: "250m"
+        memory: "512Mi"
+      limits:
+        cpu: "500m"
+        memory: "1Gi"
+    config:
+      slackWebhook: "https://hooks.slack.com/services/YOUR/WEBHOOK/HERE"
+    ports:
+      - name: http
+        port: 9093
+
+resources:
+  profile: small
+
+security:
+  authentication:
+    type: basic
+    config:
+      users:
+        - username: "developer"
+          password: "dev123"
+  
+  tls:
+    enabled: false
+  
+  secrets:
+    provider: env
+  
+  rbac:
+    enabled: false
+  
+  networkPolicy:
+    enabled: false
+
+apmConfig:
+  autoInject: false
+  envVars:
+    OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4317"
+    PROMETHEUS_ENDPOINT: "http://prometheus:9090"
+    LOG_LEVEL: "debug"
+    APM_ENABLED: "true"
+
+metadata:
+  name: local-dev-deployment
+  description: "Local development APM stack"
+  labels:
+    environment: development
+    purpose: local-testing

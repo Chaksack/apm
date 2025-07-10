@@ -1,0 +1,21 @@
+source "https://rubygems.org"
+
+# Jekyll for GitHub Pages
+gem "github-pages", group: :jekyll_plugins
+gem "jekyll", "~> 3.9"
+
+# Themes and plugins
+gem "jekyll-theme-cayman"
+gem "jekyll-seo-tag"
+gem "jekyll-sitemap"
+
+# Windows and JRuby compatibility
+gem "tzinfo", ">= 1", "< 3"
+gem "tzinfo-data", platforms: [:mingw, :mswin, :x64_mingw, :jruby]
+gem "wdm", "~> 0.1", platforms: [:mingw, :mswin, :x64_mingw]
+gem "http_parser.rb", "~> 0.6.0", platforms: [:jruby]
+
+# Development
+group :development do
+  gem "webrick", "~> 1.7"
+end

@@ -1,0 +1,230 @@
+version: "1.0"
+target:
+  type: kubernetes
+  platform:
+    namespace: apm-system
+    context: production-cluster
+
+environment: production
+
+components:
+  - name: prometheus
+    enabled: true
+    version: "2.45.0"
+    replicas: 3
+    resources:
+      requests:
+        cpu: "2"
+        memory: "8Gi"
+      limits:
+        cpu: "4"
+        memory: "16Gi"
+    storage:
+      size: "100Gi"
+      storageClass: "fast-ssd"
+      persistent: true
+    config:
+      retention: "30d"
+      scrapeInterval: "15s"
+      evaluationInterval: "15s"
+    ports:
+      - name: http
+        port: 9090
+        targetPort: 9090
+        protocol: TCP
+
+  - name: grafana
+    enabled: true
+    version: "10.0.0"
+    replicas: 2
+    resources:
+      requests:
+        cpu: "1"
+        memory: "2Gi"
+      limits:
+        cpu: "2"
+        memory: "4Gi"
+    storage:
+      size: "10Gi"
+      storageClass: "standard"
+      persistent: true
+    config:
+      adminUser: "admin"
+      adminPassword: "$(vault:secret/apm/grafana-password)"
+    ports:
+      - name: http
+        port: 3000
+        targetPort: 3000
+        protocol: TCP
+
+  - name: loki
+    enabled: true
+    version: "2.8.0"
+    replicas: 3
+    resources:
+      requests:
+        cpu: "2"
+        memory: "4Gi"
+      limits:
+        cpu: "4"
+        memory: "8Gi"
+    storage:
+      size: "200Gi"
+      storageClass: "fast-ssd"
+      persistent: true
+    config:
+      retention: "168h"
+      maxQuerySeries: 5000
+    dependencies:
+      - prometheus
+
+  - name: jaeger
+    enabled: true
+    version: "1.47.0"
+    replicas: 3
+    resources:
+      requests:
+        cpu: "2"
+        memory: "4Gi"
+      limits:
+        cpu: "4"
+        memory: "8Gi"
+    storage:
+      size: "100Gi"
+      storageClass: "fast-ssd"
+      persistent: true
+    config:
+      spanStorageType: "elasticsearch"
+      samplingRate: 0.1
+
+  - name: alertmanager
+    enabled: true
+    version: "0.26.0"
+    replicas: 3
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "1Gi"
+      limits:
+        cpu: "1"
+        memory: "2Gi"
+    config:
+      slackWebhook: "$(vault:secret/apm/slack-webhook)"
+      emailSmtp: "$(vault:secret/apm/smtp-config)"
+    dependencies:
+      - prometheus
+
+resources:
+  profile: custom
+  nodeSelector:
+    node-role.kubernetes.io/monitoring: "true"
+  tolerations:
+    - key: "monitoring"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
+  priorityClass: "high-priority"
+
+security:
+  authentication:
+    type: oauth2
+    provider: "keycloak"
+    config:
+      clientId: "apm-stack"
+      clientSecret: "$(vault:secret/apm/oauth-secret)"
+      issuerUrl: "https://keycloak.example.com/realms/production"
+  
+  tls:
+    enabled: true
+    autoGenerate: false
+    certificateFile: "$(vault:secret/apm/tls-cert)"
+    keyFile: "$(vault:secret/apm/tls-key)"
+    caFile: "$(vault:secret/apm/tls-ca)"
+  
+  secrets:
+    provider: vault
+    config:
+      address: "https://vault.example.com"
+      role: "apm-deployment"
+      mount: "kubernetes"
+  
+  rbac:
+    enabled: true
+    serviceAccount: "apm-stack"
+    roles:
+      - "monitoring-admin"
+      - "cluster-reader"
+  
+  networkPolicy:
+    enabled: true
+    ingress:
+      - from:
+          - podSelector:
+              app.kubernetes.io/part-of: apm
+          - namespaceSelector:
+              name: ingress-nginx
+        ports:
+          - protocol: TCP
+            port: 3000
+          - protocol: TCP
+            port: 9090
+    egress:
+      - to:
+          - podSelector:
+              app.kubernetes.io/part-of: apm
+        ports:
+          - protocol: TCP
+            port: 9090
+          - protocol: TCP
+            port: 3100
+          - protocol: TCP
+            port: 14250
+
+apmConfig:
+  autoInject: true
+  sidecars:
+    - name: prometheus-exporter
+      image: prom/node-exporter:latest
+      resources:
+        requests:
+          cpu: "100m"
+          memory: "128Mi"
+        limits:
+          cpu: "200m"
+          memory: "256Mi"
+      ports:
+        - name: metrics
+          port: 9100
+          targetPort: 9100
+  
+  envVars:
+    OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger-collector.apm-system.svc.cluster.local:4317"
+    PROMETHEUS_ENDPOINT: "http://prometheus.apm-system.svc.cluster.local:9090"
+    LOG_LEVEL: "info"
+    APM_ENABLED: "true"
+    TRACE_SAMPLING_RATE: "0.1"
+  
+  annotations:
+    apm.instrumentation/inject: "true"
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9090"
+    prometheus.io/path: "/metrics"
+  
+  configMounts:
+    - name: apm-config
+      mountPath: /etc/apm
+      configMap: apm-configuration
+    - name: apm-secrets
+      mountPath: /etc/apm/secrets
+      secret: apm-credentials
+
+metadata:
+  name: production-apm-deployment
+  description: "Production APM stack deployment for main cluster"
+  labels:
+    environment: production
+    team: platform
+    cost-center: engineering
+  annotations:
+    deployment.apm/version: "1.0"
+    deployment.apm/owner: "platform-team@example.com"

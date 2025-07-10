@@ -1,0 +1,231 @@
+version: "1.0"
+target:
+  type: aws
+  platform:
+    clusterName: production-apm-cluster
+    serviceType: eks
+
+environment: production
+
+cloudConfig:
+  provider: aws
+  region: us-west-2
+  credentials:
+    type: iam-role
+    config:
+      roleArn: "arn:aws:iam::123456789012:role/apm-deployment-role"
+  
+  networking:
+    vpc: "vpc-0123456789abcdef0"
+    subnets:
+      - "subnet-0123456789abcdef0"
+      - "subnet-0123456789abcdef1"
+      - "subnet-0123456789abcdef2"
+    securityGroups:
+      - "sg-0123456789abcdef0"
+    loadBalancerType: "nlb"
+  
+  storage:
+    type: ebs
+    encrypted: true
+    kmsKeyId: "arn:aws:kms:us-west-2:123456789012:key/12345678-1234-1234-1234-123456789012"
+  
+  aws:
+    accountId: "123456789012"
+    eksClusterName: "production-apm-cluster"
+    ecrRegistry: "123456789012.dkr.ecr.us-west-2.amazonaws.com"
+    iamRole: "arn:aws:iam::123456789012:role/apm-service-role"
+
+components:
+  - name: prometheus
+    enabled: true
+    version: "2.45.0"
+    replicas: 3
+    resources:
+      requests:
+        cpu: "2"
+        memory: "8Gi"
+      limits:
+        cpu: "4"
+        memory: "16Gi"
+    storage:
+      size: "500Gi"
+      storageClass: "gp3"
+      persistent: true
+    config:
+      retention: "90d"
+      scrapeInterval: "15s"
+      evaluationInterval: "15s"
+      remoteWrite:
+        - url: "https://amp-workspaces.us-west-2.amazonaws.com/workspaces/ws-12345678/api/v1/remote_write"
+          sigv4:
+            region: us-west-2
+
+  - name: grafana
+    enabled: true
+    version: "10.0.0"
+    replicas: 2
+    resources:
+      requests:
+        cpu: "1"
+        memory: "2Gi"
+      limits:
+        cpu: "2"
+        memory: "4Gi"
+    storage:
+      size: "20Gi"
+      storageClass: "gp3"
+      persistent: true
+    config:
+      adminUser: "admin"
+      adminPassword: "$(aws-sm:apm/grafana-password)"
+      database:
+        type: "mysql"
+        host: "apm-grafana-db.cluster-abc123.us-west-2.rds.amazonaws.com"
+        user: "grafana"
+        password: "$(aws-sm:apm/grafana-db-password)"
+
+  - name: loki
+    enabled: true
+    version: "2.8.0"
+    replicas: 3
+    resources:
+      requests:
+        cpu: "2"
+        memory: "4Gi"
+      limits:
+        cpu: "4"
+        memory: "8Gi"
+    storage:
+      size: "1000Gi"
+      storageClass: "gp3"
+      persistent: true
+    config:
+      retention: "720h"
+      s3:
+        bucketName: "apm-loki-storage-prod"
+        region: "us-west-2"
+        endpoint: "s3.us-west-2.amazonaws.com"
+
+  - name: jaeger
+    enabled: true
+    version: "1.47.0"
+    replicas: 3
+    resources:
+      requests:
+        cpu: "2"
+        memory: "4Gi"
+      limits:
+        cpu: "4"
+        memory: "8Gi"
+    storage:
+      size: "500Gi"
+      storageClass: "gp3"
+      persistent: true
+    config:
+      spanStorageType: "elasticsearch"
+      elasticsearch:
+        serverUrls: "https://apm-es.us-west-2.es.amazonaws.com"
+        username: "jaeger"
+        password: "$(aws-sm:apm/jaeger-es-password)"
+
+  - name: alertmanager
+    enabled: true
+    version: "0.26.0"
+    replicas: 3
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "1Gi"
+      limits:
+        cpu: "1"
+        memory: "2Gi"
+    config:
+      slackWebhook: "$(aws-sm:apm/slack-webhook)"
+      snsTopicArn: "arn:aws:sns:us-west-2:123456789012:apm-alerts"
+
+resources:
+  profile: large
+  nodeSelector:
+    eks.amazonaws.com/nodegroup: monitoring-nodes
+    node.kubernetes.io/instance-type: m5.2xlarge
+  tolerations:
+    - key: "monitoring"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
+
+security:
+  authentication:
+    type: oauth2
+    provider: "cognito"
+    config:
+      userPoolId: "us-west-2_ABC123"
+      clientId: "1234567890abcdef"
+      domain: "apm-auth.auth.us-west-2.amazoncognito.com"
+  
+  tls:
+    enabled: true
+    autoGenerate: false
+    certificateFile: "$(aws-sm:apm/tls-cert)"
+    keyFile: "$(aws-sm:apm/tls-key)"
+    caFile: "$(aws-sm:apm/tls-ca)"
+  
+  secrets:
+    provider: aws-sm
+    config:
+      region: "us-west-2"
+      prefix: "apm/"
+  
+  rbac:
+    enabled: true
+    serviceAccount: "apm-stack"
+    roles:
+      - "arn:aws:iam::123456789012:role/apm-monitoring-role"
+  
+  networkPolicy:
+    enabled: true
+
+apmConfig:
+  autoInject: true
+  sidecars:
+    - name: cloudwatch-agent
+      image: "amazon/cloudwatch-agent:latest"
+      resources:
+        requests:
+          cpu: "100m"
+          memory: "128Mi"
+        limits:
+          cpu: "200m"
+          memory: "256Mi"
+      envVars:
+        CW_CONFIG_CONTENT: "$(aws-sm:apm/cloudwatch-config)"
+  
+  envVars:
+    OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger-collector.apm-system.svc.cluster.local:4317"
+    PROMETHEUS_ENDPOINT: "http://prometheus.apm-system.svc.cluster.local:9090"
+    AWS_REGION: "us-west-2"
+    LOG_LEVEL: "info"
+    APM_ENABLED: "true"
+    XRAY_ENABLED: "true"
+  
+  annotations:
+    apm.instrumentation/inject: "true"
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9090"
+    iam.amazonaws.com/role: "arn:aws:iam::123456789012:role/apm-pod-role"
+
+metadata:
+  name: aws-production-deployment
+  description: "Production APM stack on AWS EKS"
+  labels:
+    environment: production
+    cloud: aws
+    region: us-west-2
+    team: platform
+    cost-allocation: engineering
+  annotations:
+    deployment.apm/version: "1.0"
+    deployment.apm/owner: "platform-team@example.com"
+    aws.cost-allocation/team: "platform"
+    aws.cost-allocation/project: "apm-monitoring"
