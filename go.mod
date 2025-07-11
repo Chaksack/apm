@@ -1,4 +1,4 @@
-module github.com/yourusername/apm
+module github.com/chaksack/apm
 
 go 1.23.0
 
