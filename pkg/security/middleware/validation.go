@@ -70,7 +70,7 @@ func (m *ValidationMiddleware) ValidateRequest(rules validator.RequestValidation
 		// Validate route parameters
 		if len(rules.Params) > 0 {
 			params := make(map[string]interface{})
-			for key, rule := range rules.Params {
+			for key, _ := range rules.Params {
 				if value := c.Params(key); value != "" {
 					params[key] = value
 				}
@@ -131,7 +131,7 @@ func (m *ValidationMiddleware) SanitizeInput() fiber.Handler {
 		})
 
 		// Sanitize route parameters
-		for i, param := range c.Route().Params {
+		for _, param := range c.Route().Params {
 			value := c.Params(param)
 			if value != "" {
 				sanitized := m.sanitizeValue(value)

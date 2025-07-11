@@ -5,7 +5,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/websocket/v2"
-	"github.com/chaksack/apm/pkg/deployment"
+	"github.com/yourusername/apm/pkg/deployment"
 )
 
 // DeploymentHandler handles deployment-related requests
@@ -250,18 +250,18 @@ func (h *DeploymentHandler) WebSocketHandler() fiber.Handler {
 func (h *DeploymentHandler) RegisterRoutes(app *fiber.App) {
 	// API routes
 	api := app.Group("/api/v1/deployments")
-	
+
 	// Deployment management
 	api.Post("/", h.StartDeployment)
 	api.Get("/", h.GetDeployments)
 	api.Get("/:id", h.GetDeploymentStatus)
 	api.Get("/:id/health", h.CheckDeploymentHealth)
 	api.Get("/:id/history", h.GetDeploymentHistory)
-	
+
 	// Rollback operations
 	api.Post("/:id/rollback", h.InitiateRollback)
 	api.Get("/:id/rollback/commands", h.GetRollbackCommands)
-	
+
 	// WebSocket endpoint for real-time updates
 	app.Get("/ws/deployments", websocket.New(deployment.HandleWebSocket(h.service.GetWebSocketHub())))
 }

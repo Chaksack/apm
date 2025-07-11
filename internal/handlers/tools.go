@@ -21,15 +21,15 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/chaksack/apm/pkg/tools"
+	"github.com/yourusername/apm/pkg/tools"
 )
 
 // ToolHandlers provides HTTP handlers for tool management
 type ToolHandlers struct {
-	detector          *tools.DetectorFactory
-	healthChecker     *tools.HealthCheckerFactory
-	portManager       *tools.PortManager
-	templateRenderer  *tools.ConfigTemplateRenderer
+	detector         *tools.DetectorFactory
+	healthChecker    *tools.HealthCheckerFactory
+	portManager      *tools.PortManager
+	templateRenderer *tools.ConfigTemplateRenderer
 }
 
 // NewToolHandlers creates new tool handlers
@@ -40,10 +40,10 @@ func NewToolHandlers() (*ToolHandlers, error) {
 	}
 
 	return &ToolHandlers{
-		detector:          tools.NewDetectorFactory(),
-		healthChecker:     tools.NewHealthCheckerFactory(),
-		portManager:       tools.NewPortManager(),
-		templateRenderer:  renderer,
+		detector:         tools.NewDetectorFactory(),
+		healthChecker:    tools.NewHealthCheckerFactory(),
+		portManager:      tools.NewPortManager(),
+		templateRenderer: renderer,
 	}, nil
 }
 
@@ -86,10 +86,10 @@ func (th *ToolHandlers) DetectTools(c *fiber.Ctx) error {
 // GetToolHealth checks the health of a specific tool
 func (th *ToolHandlers) GetToolHealth(c *fiber.Ctx) error {
 	toolName := c.Params("tool")
-	
+
 	// Map tool name to type
 	toolType := tools.ToolType(toolName)
-	
+
 	// Create detector for the specific tool
 	detector, err := th.detector.CreateDetector(toolType)
 	if err != nil {
@@ -163,10 +163,10 @@ func (th *ToolHandlers) GetToolConfig(c *fiber.Ctx) error {
 // GetAllocatedPorts returns all allocated ports
 func (th *ToolHandlers) GetAllocatedPorts(c *fiber.Ctx) error {
 	ports := th.portManager.GetAllocatedPorts()
-	
+
 	return c.JSON(fiber.Map{
 		"allocated_ports": ports,
-		"count":          len(ports),
+		"count":           len(ports),
 	})
 }
 
@@ -184,10 +184,10 @@ func (th *ToolHandlers) AllocatePort(c *fiber.Ctx) error {
 	}
 
 	toolType := tools.ToolType(request.ToolType)
-	
+
 	var port int
 	var err error
-	
+
 	if request.PortName != "" {
 		// Allocate additional port
 		port, err = th.portManager.AllocateAdditionalPort(toolType, request.PortName)
@@ -212,7 +212,7 @@ func (th *ToolHandlers) AllocatePort(c *fiber.Ctx) error {
 // GetPortRegistry returns the port registry information
 func (th *ToolHandlers) GetPortRegistry(c *fiber.Ctx) error {
 	registry := make(map[string]interface{})
-	
+
 	// Main ports
 	for toolType, config := range tools.PortRegistry {
 		registry[string(toolType)] = map[string]interface{}{
@@ -227,7 +227,7 @@ func (th *ToolHandlers) GetPortRegistry(c *fiber.Ctx) error {
 		if _, exists := registry[string(toolType)]; exists {
 			toolRegistry := registry[string(toolType)].(map[string]interface{})
 			additionalMap := make(map[string]interface{})
-			
+
 			for name, config := range additionalPorts {
 				additionalMap[name] = map[string]interface{}{
 					"default":     config.Default,
@@ -235,7 +235,7 @@ func (th *ToolHandlers) GetPortRegistry(c *fiber.Ctx) error {
 					"description": config.Description,
 				}
 			}
-			
+
 			toolRegistry["additional_ports"] = additionalMap
 		}
 	}
@@ -249,7 +249,7 @@ func (th *ToolHandlers) GetPortRegistry(c *fiber.Ctx) error {
 func (th *ToolHandlers) RedirectToTool(c *fiber.Ctx) error {
 	toolName := c.Params("tool")
 	toolType := tools.ToolType(toolName)
-	
+
 	// Create detector for the specific tool
 	detector, err := th.detector.CreateDetector(toolType)
 	if err != nil {
@@ -265,7 +265,7 @@ func (th *ToolHandlers) RedirectToTool(c *fiber.Ctx) error {
 			"error": fmt.Sprintf("Tool '%s' not found or not running", toolName),
 		})
 	}
-	
+
 	return c.Redirect(tool.Endpoint, fiber.StatusTemporaryRedirect)
 }
 
@@ -280,7 +280,7 @@ func (th *ToolHandlers) ListTools(c *fiber.Ctx) error {
 	}
 
 	toolList := make([]map[string]interface{}, 0, len(supportedTools))
-	
+
 	for _, toolType := range supportedTools {
 		detector, err := th.detector.CreateDetector(toolType)
 		if err != nil {
@@ -297,27 +297,27 @@ func (th *ToolHandlers) ListTools(c *fiber.Ctx) error {
 			toolInfo["status"] = "installed"
 			toolInfo["endpoint"] = tool.Endpoint
 			toolInfo["port"] = tool.Port
-			
+
 			// Check health
 			if checker, err := th.healthChecker.CreateHealthChecker(tool); err == nil {
 				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
-				
+
 				if health, err := checker.Check(ctx); err == nil {
 					toolInfo["health"] = string(health.Status)
 					toolInfo["version"] = health.Version
 				}
 			}
 		}
-		
+
 		// Add port information
 		if portConfig, exists := tools.PortRegistry[toolType]; exists {
 			toolInfo["default_port"] = portConfig.Default
 		}
-		
+
 		toolList = append(toolList, toolInfo)
 	}
-	
+
 	return c.JSON(fiber.Map{
 		"tools": toolList,
 		"count": len(toolList),

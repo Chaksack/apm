@@ -130,10 +130,18 @@ func (j *JWTManager) ValidateToken(tokenString string) (*Claims, error) {
 	// Validate audience if configured
 	if len(j.config.Audience) > 0 {
 		valid := false
-		for _, aud := range j.config.Audience {
-			if claims.VerifyAudience(aud, false) {
-				valid = true
-				break
+		// In JWT v5, audience is a slice
+		if claims.Audience != nil {
+			for _, expectedAud := range j.config.Audience {
+				for _, claimAud := range claims.Audience {
+					if claimAud == expectedAud {
+						valid = true
+						break
+					}
+				}
+				if valid {
+					break
+				}
 			}
 		}
 		if !valid {

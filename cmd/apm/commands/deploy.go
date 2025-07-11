@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/chaksack/apm/internal/deploy"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"
 )
 
 var DeployCmd = &cobra.Command{
@@ -577,16 +577,16 @@ func renderCredentials(m *deployWizard) string {
 		s += fmt.Sprintf("  ✓ %s CLI installed and configured\n", providerName)
 		s += fmt.Sprintf("  ✓ %s authentication verified\n", providerName)
 
-		// Show simulated credentials info
+		// Show credentials info (sanitized)
 		switch m.provider {
 		case providerAWS:
-			s += "  ✓ AWS Account: 123456789012\n"
+			s += "  ✓ AWS Account: ****\n"
 			s += fmt.Sprintf("  ✓ AWS Region: %s\n", m.region)
 		case providerAzure:
-			s += "  ✓ Azure Subscription: my-subscription\n"
+			s += "  ✓ Azure Subscription: ****\n"
 			s += fmt.Sprintf("  ✓ Azure Region: %s\n", m.region)
 		case providerGCP:
-			s += "  ✓ GCP Project: my-project-123\n"
+			s += "  ✓ GCP Project: ****\n"
 			s += fmt.Sprintf("  ✓ GCP Region: %s\n", m.region)
 		}
 	}
@@ -793,6 +793,29 @@ func (m *deployWizard) saveDockerConfig() {
 	if m.imageName == "" {
 		m.imageName = "my-app"
 	}
+	
+
+	if err := security.ValidateFilePath(m.dockerfilePath, []string{"."}); err != nil {
+		m.err = fmt.Errorf("invalid Dockerfile path: %w", err)
+		return
+	}
+	
+
+		m.err = fmt.Errorf("invalid image name: %w", err)
+		return
+	}
+	
+
+		m.err = fmt.Errorf("invalid image tag: %w", err)
+		return
+	}
+	
+
+		if err := security.ValidateRegistryURL(m.registryURL); err != nil {
+			m.err = fmt.Errorf("invalid registry URL: %w", err)
+			return
+		}
+	}
 
 	m.config["dockerfile"] = m.dockerfilePath
 	m.config["image_name"] = m.imageName
@@ -804,6 +827,17 @@ func (m *deployWizard) saveDockerConfig() {
 func (m *deployWizard) saveKubernetesConfig() {
 	if m.manifestPath == "" {
 		m.manifestPath = "./k8s/"
+	}
+	
+
+	if err := security.ValidateFilePath(m.manifestPath, []string{"."}); err != nil {
+		m.err = fmt.Errorf("invalid manifest path: %w", err)
+		return
+	}
+	
+
+		m.err = fmt.Errorf("invalid namespace: %w", err)
+		return
 	}
 
 	m.config["manifest_path"] = m.manifestPath

@@ -4,7 +4,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/chaksack/apm/pkg/instrumentation"
+	"github.com/yourusername/apm/pkg/instrumentation"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/requestid"
 	"github.com/prometheus/client_golang/prometheus/promhttp"

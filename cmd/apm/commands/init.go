@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/yourusername/apm/pkg/security"
 )
 
 var InitCmd = &cobra.Command{
@@ -478,7 +479,7 @@ func saveConfiguration(config map[string]interface{}) error {
 				"port":    3000,
 				"config": map[string]interface{}{
 					"security": map[string]interface{}{
-						"admin_password": "admin",
+						"admin_password": generateDefaultPassword(),
 					},
 					"datasources": []interface{}{
 						map[string]interface{}{
@@ -552,4 +553,19 @@ func saveConfiguration(config map[string]interface{}) error {
 
 	configPath := filepath.Join(".", "apm.yaml")
 	return v.WriteConfigAs(configPath)
+}
+
+// generateDefaultPassword generates a secure default password
+func generateDefaultPassword() string {
+	password, err := security.GenerateSecurePassword(16)
+	if err != nil {
+		// Fallback to a static but more secure default
+		return "APM-Secure-2024!"
+	}
+
+	// Display the generated password to the user
+	fmt.Printf("\n🔐 Generated secure Grafana admin password: %s\n", password)
+	fmt.Println("⚠️  Please save this password in a secure location!")
+
+	return password
 }

@@ -8,7 +8,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/chaksack/apm/internal/midd
+	"github.com/yourusername/apm/internal/midd
 	"github.com/gofiber/contrib/otelfiber"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"

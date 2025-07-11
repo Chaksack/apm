@@ -16,7 +16,7 @@
 package routes
 
 import (
-	"github.com/chaksack/apm/internal/handlers"
+	"github.com/yourusername/apm/internal/handlers"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"

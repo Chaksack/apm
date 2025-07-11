@@ -7,10 +7,10 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"go.uber.org/zap"
 
-	"github.com/yourusername/apm/pkg/security"
-	"github.com/yourusername/apm/pkg/security/auth"
-	"github.com/yourusername/apm/pkg/security/middleware"
-	"github.com/yourusername/apm/pkg/security/validator"
+	"../../pkg/security"
+	"../../pkg/security/auth"
+	"../../pkg/security/middleware"
+	"../../pkg/security/validator"
 )
 
 func main() {

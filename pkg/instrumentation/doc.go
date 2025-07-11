@@ -15,7 +15,7 @@
 //
 //	import (
 //	    "context"
-//	    "github.com/chaksack/apm/pkg/instrumentation"
+//	    "github.com/yourusername/apm/pkg/instrumentation"
 //	)
 //
 //	// Initialize tracer
@@ -39,7 +39,7 @@
 //
 //	import (
 //	    "github.com/gofiber/fiber/v2"
-//	    "github.com/chaksack/apm/pkg/instrumentation"
+//	    "github.com/yourusername/apm/pkg/instrumentation"
 //	)
 //
 //	app := fiber.New()
@@ -48,5 +48,5 @@
 //	app.Use(instrumentation.FiberOtelMiddleware("my-service"))
 //
 // For more examples and detailed documentation, see the package README.md
-// or visit https://github.com/chaksack/apm
+// or visit https://github.com/yourusername/apm
 package instrumentation

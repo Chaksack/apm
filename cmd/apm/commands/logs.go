@@ -14,6 +14,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/yourusername/apm/pkg/security"
 )
 
 var LogsCmd = &cobra.Command{
@@ -63,10 +64,31 @@ func runLogs(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("error reading config file: %w", err)
 	}
 
+	// Validate tail parameter
+	if err := security.ValidateTailLines(tail); err != nil {
+		return fmt.Errorf("invalid tail parameter: %w", err)
+	}
+
+	// Validate and sanitize filter
+	if filter != "" {
+		filter = security.SanitizeLogFilter(filter)
+	}
+
+	// Validate since duration
+	if since != "" {
+		if err := security.ValidateDuration(since); err != nil {
+			return fmt.Errorf("invalid since parameter: %w", err)
+		}
+	}
+
 	// Determine which component to show logs for
 	component := "app"
 	if len(args) > 0 {
 		component = normalizeComponent(args[0])
+		// Validate component name
+		if err := security.ValidateServiceName(component); err != nil {
+			return fmt.Errorf("invalid component name: %w", err)
+		}
 	}
 
 	// Get log source based on component
@@ -126,6 +148,19 @@ func getApplicationLogs(ctx context.Context, config *viper.Viper) (io.ReadCloser
 	if logPath == "" {
 		logPath = "./app.log"
 	}
+
+	// Validate log path to prevent path traversal
+	workDir, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get working directory: %w", err)
+	}
+
+	// Allow logs only from current directory or configured directories
+	allowedDirs := []string{workDir, "/var/log", "/tmp"}
+	if err := security.ValidateFilePath(logPath, allowedDirs); err != nil {
+		return nil, fmt.Errorf("invalid log path: %w", err)
+	}
+
 	return tailFile(logPath)
 }
 
@@ -152,6 +187,11 @@ func getComponentLogs(ctx context.Context, component string, config *viper.Viper
 }
 
 func getDockerLogs(ctx context.Context, containerName string) (io.ReadCloser, error) {
+	// Validate container name to prevent command injection
+	if err := security.ValidateContainerName(containerName); err != nil {
+		return nil, fmt.Errorf("invalid container name: %w", err)
+	}
+
 	args := []string{"logs"}
 
 	if follow {
@@ -163,6 +203,7 @@ func getDockerLogs(ctx context.Context, containerName string) (io.ReadCloser, er
 	}
 
 	if since != "" {
+		// Since was already validated in runLogs
 		args = append(args, "--since", since)
 	}
 
@@ -182,6 +223,15 @@ func getDockerLogs(ctx context.Context, containerName string) (io.ReadCloser, er
 }
 
 func getKubernetesLogs(ctx context.Context, appName, namespace string) (io.ReadCloser, error) {
+	// Validate app name and namespace to prevent command injection
+	if err := security.ValidateServiceName(appName); err != nil {
+		return nil, fmt.Errorf("invalid app name: %w", err)
+	}
+
+	if err := security.ValidateNamespace(namespace); err != nil {
+		return nil, fmt.Errorf("invalid namespace: %w", err)
+	}
+
 	args := []string{"logs", "-n", namespace}
 
 	if follow {
@@ -193,6 +243,7 @@ func getKubernetesLogs(ctx context.Context, appName, namespace string) (io.ReadC
 	}
 
 	if since != "" {
+		// Since was already validated in runLogs
 		args = append(args, "--since", since)
 	}
 
@@ -213,6 +264,11 @@ func getKubernetesLogs(ctx context.Context, appName, namespace string) (io.ReadC
 }
 
 func getSystemdLogs(ctx context.Context, service string) (io.ReadCloser, error) {
+	// Validate service name to prevent command injection
+	if err := security.ValidateServiceName(service); err != nil {
+		return nil, fmt.Errorf("invalid service name: %w", err)
+	}
+
 	args := []string{"-u", fmt.Sprintf("%s.service", service)}
 
 	if follow {
@@ -224,6 +280,7 @@ func getSystemdLogs(ctx context.Context, service string) (io.ReadCloser, error) 
 	}
 
 	if since != "" {
+		// Since was already validated in runLogs
 		args = append(args, "--since", since)
 	}
 
@@ -293,6 +350,11 @@ func streamLogs(source io.ReadCloser, component string) error {
 	}
 
 	scanner := bufio.NewScanner(source)
+	// Set max buffer size to prevent memory exhaustion (1MB per line)
+	const maxScanTokenSize = 1024 * 1024
+	buf := make([]byte, 0, 64*1024)
+	scanner.Buffer(buf, maxScanTokenSize)
+
 	lineCount := 0
 
 	for scanner.Scan() {
@@ -323,6 +385,11 @@ func streamLogsJSON(source io.ReadCloser, component string) error {
 	defer source.Close()
 
 	scanner := bufio.NewScanner(source)
+	// Set max buffer size to prevent memory exhaustion (1MB per line)
+	const maxScanTokenSize = 1024 * 1024
+	buf := make([]byte, 0, 64*1024)
+	scanner.Buffer(buf, maxScanTokenSize)
+
 	encoder := json.NewEncoder(os.Stdout)
 	lineCount := 0
 
@@ -455,7 +522,8 @@ func isKubernetes() bool {
 		return true
 	}
 
-	// Check if kubectl is configured
-	cmd := exec.Command("kubectl", "config", "current-context")
-	return cmd.Run() == nil
+	// Check if kubectl is configured (without executing it)
+	// Just check if kubectl binary exists in PATH
+	_, err := exec.LookPath("kubectl")
+	return err == nil
 }

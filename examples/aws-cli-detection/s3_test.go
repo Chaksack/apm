@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chaksack/apm/pkg/cloud"
+	"github.com/yourusername/apm/pkg/cloud"
 )
 
 func TestS3ManagerInitialization(t *testing.T) {

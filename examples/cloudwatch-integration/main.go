@@ -6,7 +6,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/chaksack/apm/pkg/cloud"
+	"github.com/yourusername/apm/pkg/cloud"
 )
 
 func main() {
@@ -144,17 +144,17 @@ func demonstrateAlarmManagement(ctx context.Context, manager *cloud.CloudWatchMa
 
 	// Create CPU utilization alarm
 	alarmConfig := &cloud.AlarmConfig{
-		Name:        "APM-High-CPU-Utilization",
-		Description: "Alert when CPU utilization is high",
-		Region:      "us-east-1",
-		MetricName:  "CPUUtilization",
-		Namespace:   "AWS/EC2",
-		Statistic:   "Average",
-		Period:      300,
-		EvaluationPeriods: 2,
-		Threshold:   80.0,
+		Name:               "APM-High-CPU-Utilization",
+		Description:        "Alert when CPU utilization is high",
+		Region:             "us-east-1",
+		MetricName:         "CPUUtilization",
+		Namespace:          "AWS/EC2",
+		Statistic:          "Average",
+		Period:             300,
+		EvaluationPeriods:  2,
+		Threshold:          80.0,
 		ComparisonOperator: "GreaterThanThreshold",
-		TreatMissingData: "notBreaching",
+		TreatMissingData:   "notBreaching",
 		Dimensions: map[string]string{
 			"InstanceId": "i-1234567890abcdef0",
 		},
@@ -210,10 +210,10 @@ func demonstrateLogManagement(ctx context.Context, manager *cloud.CloudWatchMana
 
 	// Create log group
 	logGroupConfig := &cloud.LogGroupConfig{
-		Name:              "/aws/apm/application-logs",
-		Region:            "us-east-1",
-		RetentionInDays:   30,
-		KmsKeyId:          "", // Use default encryption
+		Name:            "/aws/apm/application-logs",
+		Region:          "us-east-1",
+		RetentionInDays: 30,
+		KmsKeyId:        "", // Use default encryption
 		Tags: map[string]string{
 			"Environment": "production",
 			"Service":     "apm",
@@ -242,9 +242,9 @@ func demonstrateLogManagement(ctx context.Context, manager *cloud.CloudWatchMana
 
 	// Create metric filter
 	metricFilterConfig := &cloud.MetricFilterConfig{
-		FilterName:         "APM-Error-Count",
-		LogGroupName:       "/aws/apm/application-logs",
-		FilterPattern:      "[timestamp, request_id, level=\"ERROR\", ...]",
+		FilterName:    "APM-Error-Count",
+		LogGroupName:  "/aws/apm/application-logs",
+		FilterPattern: "[timestamp, request_id, level=\"ERROR\", ...]",
 		MetricTransformations: []*cloud.MetricTransformation{
 			{
 				MetricName:      "ErrorCount",
@@ -306,9 +306,9 @@ func demonstrateInsightsQueries(ctx context.Context, manager *cloud.CloudWatchMa
 	// Execute APM-specific queries
 	fmt.Println("Executing APM-specific queries...")
 	apmQueries := map[string]string{
-		"error-analysis": "fields @timestamp, @message | filter @message like /ERROR/ | stats count() by bin(5m)",
+		"error-analysis":      "fields @timestamp, @message | filter @message like /ERROR/ | stats count() by bin(5m)",
 		"performance-metrics": "fields @timestamp, @message | filter @message like /METRIC/ | parse @message /latency=(?<latency>\\d+)/",
-		"request-patterns": "fields @timestamp, @message | filter @message like /REQUEST/ | stats count() by bin(1h)",
+		"request-patterns":    "fields @timestamp, @message | filter @message like /REQUEST/ | stats count() by bin(1h)",
 	}
 
 	for queryName, queryString := range apmQueries {
@@ -347,8 +347,8 @@ func demonstrateEventsAndSNS(ctx context.Context, manager *cloud.CloudWatchManag
 		Name:        "apm-instance-state-change",
 		Description: "Monitor EC2 instance state changes for APM",
 		EventPattern: map[string]interface{}{
-			"source":        []string{"aws.ec2"},
-			"detail-type":   []string{"EC2 Instance State-change Notification"},
+			"source":      []string{"aws.ec2"},
+			"detail-type": []string{"EC2 Instance State-change Notification"},
 			"detail": map[string]interface{}{
 				"state": []string{"running", "stopped", "terminated"},
 			},
@@ -413,7 +413,7 @@ func demonstrateAPMIntegration(ctx context.Context, manager *cloud.CloudWatchMan
 	apmConfig := &cloud.APMMonitoringConfig{
 		Environment: "production",
 		Region:      "us-east-1",
-		Tools: []string{"prometheus", "grafana", "jaeger", "loki"},
+		Tools:       []string{"prometheus", "grafana", "jaeger", "loki"},
 		Dashboards: map[string]string{
 			"infrastructure": "APM-Infrastructure-Dashboard",
 			"application":    "APM-Application-Dashboard",
@@ -471,7 +471,7 @@ func demonstrateAPMIntegration(ctx context.Context, manager *cloud.CloudWatchMan
 
 	// Configure APM tool specific integrations
 	fmt.Println("Configuring APM tool integrations...")
-	
+
 	// Prometheus integration
 	prometheusConfig := &cloud.PrometheusIntegrationConfig{
 		MetricsEndpoint: "http://prometheus:9090/metrics",
@@ -529,9 +529,9 @@ func demonstrateAPMIntegration(ctx context.Context, manager *cloud.CloudWatchMan
 
 	// Loki integration
 	lokiConfig := &cloud.LokiIntegrationConfig{
-		PushURL:     "http://loki:3100/loki/api/v1/push",
-		QueryURL:    "http://loki:3100/loki/api/v1/query",
-		TenantID:    "apm-tenant",
+		PushURL:  "http://loki:3100/loki/api/v1/push",
+		QueryURL: "http://loki:3100/loki/api/v1/query",
+		TenantID: "apm-tenant",
 		LogLabels: map[string]string{
 			"environment": "production",
 			"service":     "apm",

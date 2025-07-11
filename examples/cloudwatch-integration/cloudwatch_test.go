@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chaksack/apm/pkg/cloud"
+	"github.com/yourusername/apm/pkg/cloud"
 )
 
 func TestCloudWatchManagerInitialization(t *testing.T) {
@@ -131,17 +131,17 @@ func TestAlarmManagement(t *testing.T) {
 
 	// Test alarm creation
 	alarmConfig := &cloud.AlarmConfig{
-		Name:        "Test-Alarm",
-		Description: "Test alarm for unit testing",
-		Region:      "us-east-1",
-		MetricName:  "CPUUtilization",
-		Namespace:   "AWS/EC2",
-		Statistic:   "Average",
-		Period:      300,
-		EvaluationPeriods: 2,
-		Threshold:   80.0,
+		Name:               "Test-Alarm",
+		Description:        "Test alarm for unit testing",
+		Region:             "us-east-1",
+		MetricName:         "CPUUtilization",
+		Namespace:          "AWS/EC2",
+		Statistic:          "Average",
+		Period:             300,
+		EvaluationPeriods:  2,
+		Threshold:          80.0,
 		ComparisonOperator: "GreaterThanThreshold",
-		TreatMissingData: "notBreaching",
+		TreatMissingData:   "notBreaching",
 		Dimensions: map[string]string{
 			"InstanceId": "i-test",
 		},
@@ -195,9 +195,9 @@ func TestLogManagement(t *testing.T) {
 
 	// Test log group creation
 	logGroupConfig := &cloud.LogGroupConfig{
-		Name:              "/aws/test/unit-test-logs",
-		Region:            "us-east-1",
-		RetentionInDays:   7,
+		Name:            "/aws/test/unit-test-logs",
+		Region:          "us-east-1",
+		RetentionInDays: 7,
 		Tags: map[string]string{
 			"Environment": "test",
 			"Purpose":     "unit-testing",
@@ -228,9 +228,9 @@ func TestLogManagement(t *testing.T) {
 
 	// Test metric filter creation
 	metricFilterConfig := &cloud.MetricFilterConfig{
-		FilterName:         "Test-Error-Filter",
-		LogGroupName:       "/aws/test/unit-test-logs",
-		FilterPattern:      "[timestamp, request_id, level=\"ERROR\", ...]",
+		FilterName:    "Test-Error-Filter",
+		LogGroupName:  "/aws/test/unit-test-logs",
+		FilterPattern: "[timestamp, request_id, level=\"ERROR\", ...]",
 		MetricTransformations: []*cloud.MetricTransformation{
 			{
 				MetricName:      "TestErrorCount",
@@ -388,7 +388,7 @@ func TestEventRuleManagement(t *testing.T) {
 		Name:        "test-event-rule",
 		Description: "Test event rule for unit testing",
 		EventPattern: map[string]interface{}{
-			"source": []string{"aws.ec2"},
+			"source":      []string{"aws.ec2"},
 			"detail-type": []string{"EC2 Instance State-change Notification"},
 		},
 		State:  "ENABLED",
@@ -435,14 +435,14 @@ func TestAPMIntegration(t *testing.T) {
 	apmConfig := &cloud.APMMonitoringConfig{
 		Environment: "test",
 		Region:      "us-east-1",
-		Tools: []string{"prometheus", "grafana"},
+		Tools:       []string{"prometheus", "grafana"},
 		Dashboards: map[string]string{
 			"infrastructure": "Test-Infrastructure-Dashboard",
 			"application":    "Test-Application-Dashboard",
 		},
 		Alarms: map[string]string{
-			"high-cpu":      "Test-High-CPU-Alarm",
-			"service-down":  "Test-Service-Down-Alarm",
+			"high-cpu":     "Test-High-CPU-Alarm",
+			"service-down": "Test-Service-Down-Alarm",
 		},
 		LogGroups: []string{
 			"/aws/test/prometheus",
@@ -558,11 +558,11 @@ func TestErrorHandling(t *testing.T) {
 
 	// Test invalid alarm creation
 	invalidAlarmConfig := &cloud.AlarmConfig{
-		Name:        "", // Invalid empty name
-		Region:      "us-east-1",
-		MetricName:  "CPUUtilization",
-		Namespace:   "AWS/EC2",
-		Threshold:   -1, // Invalid threshold
+		Name:       "", // Invalid empty name
+		Region:     "us-east-1",
+		MetricName: "CPUUtilization",
+		Namespace:  "AWS/EC2",
+		Threshold:  -1, // Invalid threshold
 	}
 
 	_, err = manager.CreateAlarm(ctx, invalidAlarmConfig)
@@ -572,9 +572,9 @@ func TestErrorHandling(t *testing.T) {
 
 	// Test invalid log group creation
 	invalidLogConfig := &cloud.LogGroupConfig{
-		Name:              "", // Invalid empty name
-		Region:            "us-east-1",
-		RetentionInDays:   -1, // Invalid retention
+		Name:            "", // Invalid empty name
+		Region:          "us-east-1",
+		RetentionInDays: -1, // Invalid retention
 	}
 
 	_, err = manager.CreateLogGroup(ctx, invalidLogConfig)
@@ -670,7 +670,7 @@ func TestConcurrentOperations(t *testing.T) {
 	for i := 0; i < concurrentCount; i++ {
 		go func(index int) {
 			defer func() { done <- true }()
-			
+
 			dashboardConfig := &cloud.DashboardConfig{
 				Name:        fmt.Sprintf("Concurrent-Dashboard-%d", index),
 				Description: fmt.Sprintf("Concurrent test dashboard %d", index),
@@ -715,7 +715,7 @@ func TestMultiRegionOperations(t *testing.T) {
 
 	// Test multi-region dashboard creation
 	regions := []string{"us-east-1", "us-west-2", "eu-west-1"}
-	
+
 	for _, region := range regions {
 		dashboardConfig := &cloud.DashboardConfig{
 			Name:        fmt.Sprintf("Multi-Region-Dashboard-%s", region),
@@ -738,15 +738,15 @@ func TestMultiRegionOperations(t *testing.T) {
 	// Test multi-region alarm creation
 	for _, region := range regions {
 		alarmConfig := &cloud.AlarmConfig{
-			Name:        fmt.Sprintf("Multi-Region-Alarm-%s", region),
-			Description: fmt.Sprintf("Multi-region test alarm for %s", region),
-			Region:      region,
-			MetricName:  "CPUUtilization",
-			Namespace:   "AWS/EC2",
-			Statistic:   "Average",
-			Period:      300,
-			EvaluationPeriods: 2,
-			Threshold:   80.0,
+			Name:               fmt.Sprintf("Multi-Region-Alarm-%s", region),
+			Description:        fmt.Sprintf("Multi-region test alarm for %s", region),
+			Region:             region,
+			MetricName:         "CPUUtilization",
+			Namespace:          "AWS/EC2",
+			Statistic:          "Average",
+			Period:             300,
+			EvaluationPeriods:  2,
+			Threshold:          80.0,
 			ComparisonOperator: "GreaterThanThreshold",
 			Tags: map[string]string{
 				"Environment": "test",
