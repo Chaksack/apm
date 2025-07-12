@@ -32,6 +32,7 @@ A comprehensive Application Performance Monitoring (APM) solution specifically d
 🚢 **Multi-Platform Deployment** - Deploy to Docker, Kubernetes, AWS, Azure, or GCP with interactive wizard  
 🔐 **Security First** - Built-in authentication, TLS, and secrets management  
 ☁️ **Cloud-Native Ready** - Native integration with cloud provider services  
+📚 **Comprehensive Documentation** - Extensive guides, examples, and API references
 
 ## Quick Start
 
@@ -347,7 +348,7 @@ aws:
           arn: "arn:aws:iam::222222222222:role/ProdDeployRole"
           mfa_required: true
           external_id: "prod-external-id"
-  
+
   role_chains:
     - name: "dev-to-prod"
       description: "Deploy from dev to production"
@@ -378,7 +379,7 @@ apm:
     port: 9090
     config:
       scrape_interval: "15s"
-  
+
   grafana:
     enabled: true
     port: 3000
@@ -387,17 +388,17 @@ apm:
         - name: "Prometheus"
           type: "prometheus"
           url: "http://localhost:9090"
-  
+
   jaeger:
     enabled: false
     agent_port: 6831
     ui_port: 16686
-  
+
   loki:
     enabled: false
     port: 3100
     retention: "7d"
-  
+
   alertmanager:
     enabled: false
     port: 9093
@@ -571,17 +572,17 @@ histogram := metrics.NewHistogram(
 // Use metrics in handlers
 app.Post("/orders", func(c *fiber.Ctx) error {
     start := time.Now()
-    
+
     // Track metrics
     counter.WithLabelValues("create_order", "initiated").Inc()
     gauge.WithLabelValues("http").Inc()
     defer gauge.WithLabelValues("http").Dec()
-    
+
     // Process order...
-    
+
     histogram.WithLabelValues("/orders").Observe(time.Since(start).Seconds())
     counter.WithLabelValues("create_order", "completed").Inc()
-    
+
     return c.JSON(order)
 })
 ```
@@ -609,21 +610,21 @@ tracer := instrumentation.GetTracer("my-service")
 app.Get("/users/:id", func(c *fiber.Ctx) error {
     // Get context with correlation ID
     ctx := instrumentation.FiberContextWithCorrelation(c)
-    
+
     // Create span
     ctx, span := instrumentation.StartSpanWithCorrelation(ctx, tracer, "get-user")
     defer span.End()
-    
+
     // Add span attributes
     span.SetAttributes(
         attribute.String("user.id", c.Params("id")),
         attribute.String("correlation.id", instrumentation.GetCorrelationID(ctx)),
     )
-    
+
     // Propagate context for outgoing HTTP requests
     headers := make(map[string]string)
     instrumentation.PropagateContext(c, headers)
-    
+
     return c.JSON(user)
 })
 ```
@@ -634,20 +635,20 @@ app.Get("/users/:id", func(c *fiber.Ctx) error {
 // Get request-scoped logger in handlers
 app.Use(func(c *fiber.Ctx) error {
     logger := instrumentation.GetLogger(c)
-    
+
     logger.Info("Request received",
         zap.String("method", c.Method()),
         zap.String("path", c.Path()),
         zap.String("request_id", c.Locals("requestid").(string)),
     )
-    
+
     return c.Next()
 })
 
 // Error logging
 app.Use(func(c *fiber.Ctx) error {
     err := c.Next()
-    
+
     if err != nil {
         logger := instrumentation.GetLogger(c)
         logger.Error("Request failed",
@@ -655,7 +656,7 @@ app.Use(func(c *fiber.Ctx) error {
             zap.Int("status", c.Response().StatusCode()),
         )
     }
-    
+
     return err
 })
 ```
@@ -678,7 +679,7 @@ app.Get("/health/ready", func(c *fiber.Ctx) error {
         "cache": checkRedis(),
         "external_api": checkExternalAPI(),
     }
-    
+
     allHealthy := true
     for _, status := range checks {
         if status != "healthy" {
@@ -686,12 +687,12 @@ app.Get("/health/ready", func(c *fiber.Ctx) error {
             break
         }
     }
-    
+
     status := fiber.StatusOK
     if !allHealthy {
         status = fiber.StatusServiceUnavailable
     }
-    
+
     return c.Status(status).JSON(fiber.Map{
         "status": allHealthy,
         "checks": checks,
@@ -829,23 +830,23 @@ import (
 func main() {
     // Load configuration
     cfg := instrumentation.LoadFromEnv()
-    
+
     // Initialize instrumentation
     inst, err := instrumentation.New(cfg)
     if err != nil {
         panic(err)
     }
     defer inst.Shutdown(context.Background())
-    
+
     // Create Fiber app with middleware stack
     app := fiber.New()
     app.Use(requestid.New())
     app.Use(inst.FiberMiddleware())
     app.Use(instrumentation.LoggerMiddleware(inst.Logger))
-    
+
     // Your routes here
     setupRoutes(app, inst)
-    
+
     app.Listen(":8080")
 }
 ```
@@ -863,7 +864,7 @@ var (
         },
         []string{"status", "payment_method"},
     )
-    
+
     cartSize = prometheus.NewHistogramVec(
         prometheus.HistogramOpts{
             Name: "cart_size",
@@ -877,31 +878,31 @@ var (
 app.Post("/checkout", func(c *fiber.Ctx) error {
     ctx := instrumentation.FiberContextWithCorrelation(c)
     tracer := instrumentation.GetTracer("checkout-service")
-    
+
     // Start main span
     ctx, span := tracer.Start(ctx, "process-checkout")
     defer span.End()
-    
+
     // Process payment
     ctx, paymentSpan := tracer.Start(ctx, "process-payment")
     // ... payment logic
     paymentSpan.End()
-    
+
     // Update inventory
     ctx, inventorySpan := tracer.Start(ctx, "update-inventory")
     // ... inventory logic
     inventorySpan.End()
-    
+
     // Record metrics
     orderCounter.WithLabelValues("completed", "credit_card").Inc()
     cartSize.WithLabelValues("registered").Observe(float64(len(cart.Items)))
-    
+
     logger := instrumentation.GetLogger(c)
     logger.Info("Order completed",
         zap.String("order_id", orderID),
         zap.Float64("total", orderTotal),
     )
-    
+
     return c.JSON(order)
 })
 ```
@@ -929,7 +930,7 @@ func NewPaymentService() *PaymentService {
             )
         },
     }
-    
+
     return &PaymentService{
         breaker: gobreaker.NewCircuitBreaker(settings),
         tracer:  instrumentation.GetTracer("payment-service"),
@@ -939,23 +940,23 @@ func NewPaymentService() *PaymentService {
 func (s *PaymentService) ProcessPayment(ctx context.Context, amount float64) error {
     _, span := s.tracer.Start(ctx, "payment.process")
     defer span.End()
-    
+
     result, err := s.breaker.Execute(func() (interface{}, error) {
         // Make external API call
         return s.callPaymentAPI(ctx, amount)
     })
-    
+
     if err != nil {
         span.RecordError(err)
         span.SetStatus(codes.Error, "Payment processing failed")
         return err
     }
-    
+
     span.SetAttributes(
         attribute.Float64("payment.amount", amount),
         attribute.String("payment.status", "success"),
     )
-    
+
     return nil
 }
 ```
@@ -970,29 +971,29 @@ type UserRepository struct {
 func (r *UserRepository) GetUser(ctx context.Context, id string) (*User, error) {
     ctx, span := r.tracer.Start(ctx, "repository.get_user")
     defer span.End()
-    
+
     span.SetAttributes(
         attribute.String("db.operation", "SELECT"),
         attribute.String("db.table", "users"),
         attribute.String("user.id", id),
     )
-    
+
     // Measure query duration
     start := time.Now()
-    
+
     var user User
     err := r.db.QueryRowContext(ctx,
         "SELECT id, name, email FROM users WHERE id = $1", id,
     ).Scan(&user.ID, &user.Name, &user.Email)
-    
+
     queryDuration.WithLabelValues("select_user").Observe(time.Since(start).Seconds())
-    
+
     if err != nil {
         span.RecordError(err)
         span.SetStatus(codes.Error, "Failed to fetch user")
         return nil, err
     }
-    
+
     return &user, nil
 }
 ```
@@ -1009,11 +1010,11 @@ type CacheService struct {
 func (c *CacheService) Get(ctx context.Context, key string) (string, error) {
     ctx, span := c.tracer.Start(ctx, "cache.get")
     defer span.End()
-    
+
     span.SetAttributes(attribute.String("cache.key", key))
-    
+
     value, err := c.client.Get(ctx, key).Result()
-    
+
     if err == redis.Nil {
         c.missCounter.Inc()
         span.SetAttributes(attribute.Bool("cache.hit", false))
@@ -1022,10 +1023,10 @@ func (c *CacheService) Get(ctx context.Context, key string) (string, error) {
         span.RecordError(err)
         return "", err
     }
-    
+
     c.hitCounter.Inc()
     span.SetAttributes(attribute.Bool("cache.hit", true))
-    
+
     return value, nil
 }
 ```
@@ -1059,31 +1060,57 @@ func TestMetricsCollection(t *testing.T) {
             Enabled: true,
         },
     }
-    
+
     // Initialize instrumentation
     inst, err := instrumentation.New(cfg)
     require.NoError(t, err)
     defer inst.Shutdown(context.Background())
-    
+
     // Create test app
     app := fiber.New()
     app.Use(inst.FiberMiddleware())
-    
+
     // Test endpoint
     app.Get("/test", func(c *fiber.Ctx) error {
         return c.SendString("OK")
     })
-    
+
     // Make request
     req := httptest.NewRequest("GET", "/test", nil)
     resp, err := app.Test(req)
-    
+
     assert.NoError(t, err)
     assert.Equal(t, 200, resp.StatusCode)
-    
+
     // Verify metrics were collected
     // ... metric assertions
 }
+```
+
+## 👥 Authors
+
+- **Andrew Chakdahah** - [chakdahah@gmail.com](mailto:chakdahah@gmail.com)
+- **Yaw Boateng Kessie** - [ybkess@gmail.com](mailto:ybkess@gmail.com)
+
+## 📄 License
+
+This project is licensed under the Apache License, Version 2.0 - see the [LICENSE](LICENSE) file for details.
+
+```
+Copyright (c) 2024 APM Solution Contributors
+Authors: Andrew Chakdahah (chakdahah@gmail.com) and Yaw Boateng Kessie (ybkess@gmail.com)
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
 ```
 
 ## 🚀 Deployment Options
@@ -1475,6 +1502,20 @@ func TestMyHandler(t *testing.T) {
     // ... test assertions
 }
 ```
+
+### CLI Testing
+
+The APM CLI commands can be tested using the provided test script:
+
+```bash
+# Navigate to the test directory
+cd test
+
+# Run the CLI test script
+./cli_test.sh
+```
+
+The test script verifies that all CLI commands (init, run, test, dashboard) execute without errors. For more details, see [CLI Testing Documentation](test/CLI_TESTING.md).
 
 ## Documentation
 
