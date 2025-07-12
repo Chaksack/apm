@@ -8,7 +8,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/ybke/apm/pkg/cloud"
+	"github.com/chaksack/apm/pkg/cloud"
 )
 
 func main() {
@@ -38,7 +38,7 @@ func main() {
 	} else {
 		fmt.Printf("Found %d CloudFormation stacks\n", len(stacks))
 		for _, stack := range stacks {
-			fmt.Printf("  - %s (%s) in %s - Status: %s\n", 
+			fmt.Printf("  - %s (%s) in %s - Status: %s\n",
 				stack.Name, stack.Arn, stack.Region, stack.Status)
 		}
 	}
@@ -51,9 +51,9 @@ func main() {
 	} else {
 		fmt.Printf("Found %d APM-related stacks\n", len(apmStacks))
 		for _, stack := range apmStacks {
-			fmt.Printf("  - %s in %s - APM Resources: %v\n", 
+			fmt.Printf("  - %s in %s - APM Resources: %v\n",
 				stack.Name, stack.Region, stack.APMResources != nil)
-			
+
 			if stack.APMResources != nil {
 				printAPMResources(stack.APMResources)
 			}
@@ -64,7 +64,7 @@ func main() {
 	if len(stacks) > 0 {
 		fmt.Println("\n3. Getting detailed information for first stack...")
 		firstStack := stacks[0]
-		
+
 		detailedStack, err := provider.GetCloudFormationStack(ctx, firstStack.Name, firstStack.Region)
 		if err != nil {
 			log.Printf("Error getting stack details: %v", err)
@@ -84,7 +84,7 @@ func main() {
 				if i >= 5 {
 					break
 				}
-				fmt.Printf("    - %s (%s): %s\n", 
+				fmt.Printf("    - %s (%s): %s\n",
 					resource.LogicalID, resource.Type, resource.Status)
 			}
 
@@ -106,7 +106,7 @@ func main() {
 			fmt.Printf("Overall Health: %s\n", health.OverallHealth)
 			fmt.Printf("Healthy Resources: %d\n", health.HealthyResources)
 			fmt.Printf("Unhealthy Resources: %d\n", health.UnhealthyResources)
-			
+
 			if len(health.Issues) > 0 {
 				fmt.Println("Issues:")
 				for _, issue := range health.Issues {
@@ -140,7 +140,7 @@ func main() {
 						fmt.Printf("  ... and %d more\n", len(drift.DriftedResources)-3)
 						break
 					}
-					fmt.Printf("  - %s (%s): %s\n", 
+					fmt.Printf("  - %s (%s): %s\n",
 						drifted.LogicalID, drifted.ResourceType, drifted.DriftStatus)
 				}
 			}
@@ -162,7 +162,7 @@ func main() {
 	} else {
 		fmt.Printf("APM Infrastructure Summary:\n")
 		fmt.Printf("  Total Stacks: %d\n", summary.TotalStacks)
-		fmt.Printf("  Healthy: %d, Degraded: %d, Unhealthy: %d\n", 
+		fmt.Printf("  Healthy: %d, Degraded: %d, Unhealthy: %d\n",
 			summary.HealthyStacks, summary.DegradedStacks, summary.UnhealthyStacks)
 		fmt.Printf("  Last Updated: %s\n", summary.LastUpdated.Format(time.RFC3339))
 
@@ -178,7 +178,7 @@ func main() {
 		if len(summary.RegionSummary) > 0 {
 			fmt.Println("  By Region:")
 			for region, regionSummary := range summary.RegionSummary {
-				fmt.Printf("    %s: %d stacks (%d healthy)\n", 
+				fmt.Printf("    %s: %d stacks (%d healthy)\n",
 					region, regionSummary.StackCount, regionSummary.HealthyStacks)
 				if len(regionSummary.Issues) > 0 {
 					fmt.Printf("      Issues: %d\n", len(regionSummary.Issues))
@@ -190,7 +190,7 @@ func main() {
 	// Test 7: Search for specific APM resources
 	fmt.Println("\n7. Searching for APM resources...")
 	resourceTypes := []string{"loadbalancer", "ecs", "rds", "lambda"}
-	
+
 	for _, resourceType := range resourceTypes {
 		fmt.Printf("\nSearching for %s resources...\n", resourceType)
 		results, err := provider.SearchAPMResources(ctx, resourceType, []string{"us-east-1", "us-west-2"})
@@ -203,7 +203,7 @@ func main() {
 					fmt.Printf("  ... and %d more\n", len(results)-3)
 					break
 				}
-				fmt.Printf("  - %s (%s) in %s: %s\n", 
+				fmt.Printf("  - %s (%s) in %s: %s\n",
 					result.ResourceName, result.ResourceType, result.StackName, result.Status)
 				if result.Endpoint != "" {
 					fmt.Printf("    Endpoint: %s\n", result.Endpoint)
@@ -213,7 +213,7 @@ func main() {
 	}
 
 	fmt.Println("\n✅ CloudFormation stack detection demonstration completed!")
-	
+
 	// Export summary to JSON file
 	if summary != nil {
 		fmt.Println("\n8. Exporting summary to JSON...")
@@ -242,7 +242,7 @@ func printAPMResources(resources *cloud.APMResources) {
 	if len(resources.ECSServices) > 0 {
 		fmt.Printf("    ECS Services: %d\n", len(resources.ECSServices))
 		for _, svc := range resources.ECSServices {
-			fmt.Printf("      - %s in %s: %d/%d tasks\n", 
+			fmt.Printf("      - %s in %s: %d/%d tasks\n",
 				svc.ServiceName, svc.ClusterName, svc.RunningCount, svc.DesiredCount)
 		}
 	}
@@ -250,7 +250,7 @@ func printAPMResources(resources *cloud.APMResources) {
 	if len(resources.RDSInstances) > 0 {
 		fmt.Printf("    RDS Instances: %d\n", len(resources.RDSInstances))
 		for _, db := range resources.RDSInstances {
-			fmt.Printf("      - %s (%s): %s\n", 
+			fmt.Printf("      - %s (%s): %s\n",
 				db.DBInstanceIdentifier, db.Engine, db.Status)
 		}
 	}
@@ -258,7 +258,7 @@ func printAPMResources(resources *cloud.APMResources) {
 	if len(resources.LambdaFunctions) > 0 {
 		fmt.Printf("    Lambda Functions: %d\n", len(resources.LambdaFunctions))
 		for _, fn := range resources.LambdaFunctions {
-			fmt.Printf("      - %s (%s): %s\n", 
+			fmt.Printf("      - %s (%s): %s\n",
 				fn.FunctionName, fn.Runtime, fn.State)
 		}
 	}
@@ -266,7 +266,7 @@ func printAPMResources(resources *cloud.APMResources) {
 	if len(resources.ElastiCacheClusters) > 0 {
 		fmt.Printf("    ElastiCache Clusters: %d\n", len(resources.ElastiCacheClusters))
 		for _, cache := range resources.ElastiCacheClusters {
-			fmt.Printf("      - %s (%s): %s\n", 
+			fmt.Printf("      - %s (%s): %s\n",
 				cache.ClusterID, cache.Engine, cache.Status)
 		}
 	}
@@ -281,7 +281,7 @@ func printAPMResources(resources *cloud.APMResources) {
 	if len(resources.VPCResources) > 0 {
 		fmt.Printf("    VPCs: %d\n", len(resources.VPCResources))
 		for _, vpc := range resources.VPCResources {
-			fmt.Printf("      - %s (%s): %d subnets\n", 
+			fmt.Printf("      - %s (%s): %d subnets\n",
 				vpc.VpcId, vpc.CidrBlock, len(vpc.SubnetIds))
 		}
 	}

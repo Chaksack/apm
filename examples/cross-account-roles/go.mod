@@ -4,6 +4,6 @@ go 1.23.0
 
 toolchain go1.24.5
 
-replace github.com/ybke/apm => ../..
+replace github.com/chaksack/apm => ../..
 
-require github.com/ybke/apm v0.0.0-00010101000000-000000000000
+require github.com/chaksack/apm v0.0.0-00010101000000-000000000000

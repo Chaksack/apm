@@ -6,7 +6,7 @@ go 1.23.0
 // This package provides comprehensive observability for GoFiber applications including
 // metrics collection, distributed tracing, structured logging, and health checks.
 
-toolchain go1.24.4
+toolchain go1.24.5
 
 require (
 	github.com/aws/aws-sdk-go v1.55.7

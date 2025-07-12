@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/yourusername/apm/pkg/cloud"
+	"github.com/chaksack/apm/pkg/cloud"
 )
 
 func TestCloudWatchManagerInitialization(t *testing.T) {

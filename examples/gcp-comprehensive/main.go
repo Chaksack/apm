@@ -4,9 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 
-	"github.com/yourusername/apm/pkg/cloud"
+	"github.com/chaksack/apm/pkg/cloud"
 )
 
 func main() {
@@ -37,7 +36,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to detect CLI: %v", err)
 	}
-	fmt.Printf("CLI Status: Installed=%v, Version=%s, Path=%s\n", 
+	fmt.Printf("CLI Status: Installed=%v, Version=%s, Path=%s\n",
 		cliStatus.Installed, cliStatus.Version, cliStatus.Path)
 
 	// Validate authentication
@@ -54,7 +53,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to get credentials: %v", err)
 	}
-	fmt.Printf("Provider: %s, Method: %s, Account: %s\n", 
+	fmt.Printf("Provider: %s, Method: %s, Account: %s\n",
 		credentials.Provider, credentials.AuthMethod, credentials.Account)
 
 	// Get advanced operations
@@ -64,7 +63,7 @@ func main() {
 	// Resource Manager operations
 	fmt.Println("\n=== Resource Manager Operations ===")
 	resourceManager := advOps.GetResourceManager()
-	
+
 	// List projects
 	projects, err := resourceManager.ListProjects(ctx)
 	if err != nil {
@@ -92,7 +91,7 @@ func main() {
 	// Service Account operations
 	fmt.Println("\n=== Service Account Operations ===")
 	serviceAccountManager := advOps.GetServiceAccountManager()
-	
+
 	// List service accounts
 	serviceAccounts, err := serviceAccountManager.ListServiceAccounts(ctx)
 	if err != nil {
@@ -112,7 +111,7 @@ func main() {
 	// Authentication Manager operations
 	fmt.Println("\n=== Authentication Manager Operations ===")
 	authManager := advOps.GetAuthenticationManager()
-	
+
 	// List active accounts
 	accounts, err := authManager.ListActiveAccounts(ctx)
 	if err != nil {
@@ -153,7 +152,7 @@ func main() {
 	} else {
 		fmt.Printf("Found %d GKE clusters:\n", len(clusters))
 		for _, cluster := range clusters {
-			fmt.Printf("  - %s (%s) in %s, Status: %s, Nodes: %d\n", 
+			fmt.Printf("  - %s (%s) in %s, Status: %s, Nodes: %d\n",
 				cluster.Name, cluster.Version, cluster.Region, cluster.Status, cluster.NodeCount)
 		}
 	}
@@ -181,7 +180,7 @@ func main() {
 	// Storage operations
 	fmt.Println("\n=== Storage Operations ===")
 	storageManager := advOps.GetStorageManager()
-	
+
 	buckets, err := storageManager.ListStorageBuckets(ctx)
 	if err != nil {
 		log.Printf("Failed to list storage buckets: %v", err)
@@ -200,7 +199,7 @@ func main() {
 	// Monitoring operations
 	fmt.Println("\n=== Monitoring Operations ===")
 	monitoringManager := advOps.GetMonitoringManager()
-	
+
 	// Enable monitoring APIs (this might take some time)
 	fmt.Println("Ensuring Cloud Monitoring API is enabled...")
 	if err := monitoringManager.EnableMonitoringAPI(ctx); err != nil {
@@ -268,12 +267,12 @@ func authenticateWithServiceAccount(ctx context.Context, provider *cloud.GCPProv
 // 2. Setup Workload Identity for GKE:
 func setupWorkloadIdentity(ctx context.Context, provider *cloud.GCPProvider) error {
 	authManager := provider.GetAdvancedOperations().GetAuthenticationManager()
-	return authManager.SetupWorkloadIdentity(ctx, 
-		"my-project", 
-		"my-cluster", 
-		"us-central1-a", 
-		"default", 
-		"my-k8s-sa", 
+	return authManager.SetupWorkloadIdentity(ctx,
+		"my-project",
+		"my-cluster",
+		"us-central1-a",
+		"default",
+		"my-k8s-sa",
 		"my-gcp-sa@my-project.iam.gserviceaccount.com")
 }
 
@@ -299,7 +298,7 @@ func fullAPMSetup(ctx context.Context, provider *cloud.GCPProvider, projectID st
 		SetupMonitoring:      true,
 		CreateStorageBucket:  true,
 	}
-	
+
 	advOps := provider.GetAdvancedOperations()
 	return advOps.SetupAPMIntegration(ctx, config)
 }

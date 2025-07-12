@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chaksack/apm/pkg/security"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/yourusername/apm/pkg/security"
 )
 
 var LogsCmd = &cobra.Command{

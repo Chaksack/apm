@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/yourusername/apm/pkg/cloud"
+	"github.com/chaksack/apm/pkg/cloud"
 )
 
 func TestS3ManagerInitialization(t *testing.T) {
@@ -235,7 +235,7 @@ func TestHealthChecker(t *testing.T) {
 
 	s3Manager := provider.GetS3Manager()
 	logger := cloud.NewS3Logger(provider, false, cloud.LogLevelError) // Disabled for testing
-	
+
 	healthChecker := cloud.NewS3HealthChecker(s3Manager, logger)
 	if healthChecker == nil {
 		t.Fatal("HealthChecker should not be nil")
@@ -243,14 +243,14 @@ func TestHealthChecker(t *testing.T) {
 
 	// Test metrics monitoring
 	metrics := cloud.NewS3Metrics()
-	
+
 	// Add some test metrics
 	metrics.RecordOperation(&cloud.S3OperationContext{
 		Operation: "TestOp1",
 		Success:   true,
 		Duration:  100 * time.Millisecond,
 	})
-	
+
 	metrics.RecordOperation(&cloud.S3OperationContext{
 		Operation: "TestOp2",
 		Success:   false,

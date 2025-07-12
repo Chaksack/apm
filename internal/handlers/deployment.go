@@ -3,9 +3,9 @@ package handlers
 import (
 	"time"
 
+	"github.com/chaksack/apm/pkg/deployment"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/websocket/v2"
-	"github.com/yourusername/apm/pkg/deployment"
 )
 
 // DeploymentHandler handles deployment-related requests

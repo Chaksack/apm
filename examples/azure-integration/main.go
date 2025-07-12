@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/yourusername/apm/pkg/cloud"
+	"github.com/chaksack/apm/pkg/cloud"
 )
 
 func main() {
@@ -49,13 +49,13 @@ func main() {
 	if err := azureProvider.ValidateCLI(); err != nil {
 		log.Printf("⚠️  CLI validation failed: %v", err)
 		fmt.Println("💡 Please run 'az login' to authenticate")
-		
+
 		// Demonstrate different authentication methods
 		fmt.Println("\n🔐 Authentication Options:")
 		fmt.Println("1. Interactive: az login")
 		fmt.Println("2. Device code: az login --use-device-code")
 		fmt.Println("3. Service principal: az login --service-principal")
-		
+
 		// For demo purposes, skip if not authenticated
 		return
 	}
@@ -130,7 +130,7 @@ func main() {
 	} else {
 		fmt.Printf("✅ Found %d AKS clusters:\n", len(clusters))
 		for _, cluster := range clusters {
-			fmt.Printf("   - %s (v%s) in %s - %s [%d nodes]\n", 
+			fmt.Printf("   - %s (v%s) in %s - %s [%d nodes]\n",
 				cluster.Name, cluster.Version, cluster.Region, cluster.Status, cluster.NodeCount)
 		}
 	}
@@ -200,7 +200,7 @@ func main() {
 
 	// 11. Credential Management Demo
 	fmt.Println("\n🗄️  Step 11: Credential Management...")
-	
+
 	// Store sample credentials
 	sampleCreds := &cloud.Credentials{
 		Provider:   cloud.ProviderAzure,
@@ -310,7 +310,7 @@ func main() {
 	fmt.Println("   ✅ ARM template validation")
 	fmt.Println("   ✅ Azure Monitor integration")
 	fmt.Println("   ✅ Region management")
-	
+
 	fmt.Println("\n📖 For more information, see the documentation at:")
 	fmt.Println("   https://github.com/ybke/apm/docs/azure-integration.md")
 }
@@ -356,7 +356,7 @@ func demoResourceManagement(ctx context.Context, provider *cloud.AzureProviderIm
 
 	// Example of creating a resource group
 	fmt.Println("Creating a demo resource group:")
-	
+
 	demoRGName := fmt.Sprintf("apm-demo-rg-%d", time.Now().Unix())
 	tags := map[string]string{
 		"Environment": "Demo",
@@ -374,7 +374,7 @@ func demoResourceManagement(ctx context.Context, provider *cloud.AzureProviderIm
 	//     log.Printf("Failed to create resource group: %v", err)
 	// } else {
 	//     fmt.Printf("✅ Resource group created: %s\n", rg.Name)
-	//     
+	//
 	//     // Clean up
 	//     fmt.Println("Cleaning up demo resource group...")
 	//     if err := provider.DeleteResourceGroup(ctx, demoRGName); err != nil {
@@ -393,16 +393,16 @@ func demoServicePrincipalManagement(ctx context.Context, provider *cloud.AzurePr
 	fmt.Println("===================================")
 
 	demoSPName := fmt.Sprintf("apm-demo-sp-%d", time.Now().Unix())
-	
+
 	fmt.Printf("Creating service principal: %s\n", demoSPName)
-	
+
 	// In a real scenario, you would uncomment this:
 	// sp, err := provider.CreateServicePrincipal(ctx, demoSPName)
 	// if err != nil {
 	//     log.Printf("Failed to create service principal: %v", err)
 	// } else {
 	//     fmt.Printf("✅ Service principal created: %s (App ID: %s)\n", sp.DisplayName, sp.AppID)
-	//     
+	//
 	//     // Demonstrate secret rotation
 	//     fmt.Println("Rotating service principal secret...")
 	//     rotatedSP, err := provider.RotateServicePrincipalSecret(ctx, sp.AppID)
@@ -411,7 +411,7 @@ func demoServicePrincipalManagement(ctx context.Context, provider *cloud.AzurePr
 	//     } else {
 	//         fmt.Println("✅ Service principal secret rotated")
 	//     }
-	//     
+	//
 	//     // Clean up
 	//     fmt.Println("Cleaning up demo service principal...")
 	//     if err := provider.DeleteServicePrincipal(ctx, sp.AppID); err != nil {

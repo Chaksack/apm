@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/yourusername/apm/pkg/instrumentation"
+	"github.com/chaksack/apm/pkg/instrumentation"
 	"github.com/gofiber/fiber/v2"
 )
 

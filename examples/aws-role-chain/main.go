@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/apm/pkg/cloud"
+	"github.com/chaksack/apm/pkg/cloud"
 )
 
 func main() {
@@ -118,8 +118,8 @@ func demonstrateComplexChain(ctx context.Context, provider *cloud.AWSProvider) {
 			RoleArn:     "arn:aws:iam::333333333333:role/AuditRole",
 			SessionName: "audit-access",
 			Options: &cloud.AssumeRoleOptions{
-				DurationSeconds: 900, // 15 minutes
-				Region:         "eu-west-1", // Different region
+				DurationSeconds: 900,         // 15 minutes
+				Region:          "eu-west-1", // Different region
 			},
 		},
 	}
@@ -243,7 +243,7 @@ func demonstrateEnhancedChainManager(ctx context.Context, provider *cloud.AWSPro
 		if i > 0 && i <= len(session.Credentials) {
 			prevCreds = session.Credentials[i-1].Credentials
 		}
-		
+
 		err := chainManager.ValidateChainStep(ctx, step, prevCreds)
 		if err != nil {
 			fmt.Printf("  Step %d validation failed: %v\n", i+1, err)

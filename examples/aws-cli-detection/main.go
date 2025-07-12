@@ -7,7 +7,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/yourusername/apm/pkg/cloud"
+	"github.com/chaksack/apm/pkg/cloud"
 )
 
 func main() {
@@ -123,15 +123,15 @@ func printValidationResult(result *cloud.AWSCLIValidationResult) {
 func demonstrateS3Functionality(provider *cloud.AWSProvider) {
 	ctx := context.Background()
 	s3Manager := provider.GetS3Manager()
-	
+
 	// Initialize logger and metrics
 	logger := cloud.NewS3Logger(provider, true, cloud.LogLevelInfo)
 	metrics := cloud.NewS3Metrics()
 	s3Manager.SetLogger(logger)
 	s3Manager.SetMetrics(metrics)
-	
+
 	fmt.Println("Testing S3 Manager functionality...")
-	
+
 	// Test 1: List buckets
 	fmt.Println("\n- Listing S3 buckets:")
 	buckets, err := s3Manager.ListBuckets(ctx, "us-east-1")
@@ -148,33 +148,33 @@ func demonstrateS3Functionality(provider *cloud.AWSProvider) {
 			fmt.Printf("    ... and %d more\n", len(buckets)-3)
 		}
 	}
-	
+
 	// Test 2: Health check
 	fmt.Println("\n- Running S3 health check:")
 	healthChecker := cloud.NewS3HealthChecker(s3Manager, logger)
 	testBucket := "apm-test-" + fmt.Sprintf("%d", time.Now().Unix())
-	
+
 	healthResult := healthChecker.CheckS3Health(ctx, testBucket, "us-east-1")
 	fmt.Printf("  Health Status: %s\n", healthResult.Status)
 	fmt.Printf("  Response Time: %v\n", healthResult.ResponseTime)
-	
+
 	if len(healthResult.Errors) > 0 {
 		fmt.Println("  Errors:")
 		for _, err := range healthResult.Errors {
 			fmt.Printf("    - %s\n", err)
 		}
 	}
-	
+
 	if len(healthResult.Details) > 0 {
 		fmt.Println("  Details:")
 		for key, value := range healthResult.Details {
 			fmt.Printf("    %s: %s\n", key, value)
 		}
 	}
-	
+
 	// Test 3: APM Configuration Management (demonstration)
 	fmt.Println("\n- Testing APM configuration management:")
-	
+
 	// Create a sample Prometheus configuration
 	prometheusConfig := map[string]interface{}{
 		"global": map[string]interface{}{
@@ -191,14 +191,14 @@ func demonstrateS3Functionality(provider *cloud.AWSProvider) {
 			},
 		},
 	}
-	
+
 	// Validate the configuration
 	if err := s3Manager.ValidateAPMConfig("prometheus", prometheusConfig); err != nil {
 		fmt.Printf("  Prometheus config validation failed: %v\n", err)
 	} else {
 		fmt.Println("  Prometheus config validation: PASSED")
 	}
-	
+
 	// Test with different APM tool configurations
 	testConfigs := map[string]map[string]interface{}{
 		"grafana": {
@@ -221,7 +221,7 @@ func demonstrateS3Functionality(provider *cloud.AWSProvider) {
 			},
 		},
 	}
-	
+
 	for configType, config := range testConfigs {
 		if err := s3Manager.ValidateAPMConfig(configType, config); err != nil {
 			fmt.Printf("  %s config validation failed: %v\n", configType, err)
@@ -229,7 +229,7 @@ func demonstrateS3Functionality(provider *cloud.AWSProvider) {
 			fmt.Printf("  %s config validation: PASSED\n", configType)
 		}
 	}
-	
+
 	// Test 4: Show metrics
 	fmt.Println("\n- S3 Operation Metrics:")
 	currentMetrics := metrics.GetMetrics()
@@ -241,22 +241,22 @@ func demonstrateS3Functionality(provider *cloud.AWSProvider) {
 		fmt.Printf("  Success Rate: %.1f%%\n", successRate)
 	}
 	fmt.Printf("  Average Response Time: %v\n", currentMetrics.AverageResponseTime)
-	
+
 	if len(currentMetrics.OperationCounts) > 0 {
 		fmt.Println("  Operation Counts:")
 		for operation, count := range currentMetrics.OperationCounts {
 			fmt.Printf("    %s: %d\n", operation, count)
 		}
 	}
-	
+
 	// Test 5: Error handling demonstration
 	fmt.Println("\n- Testing error handling:")
-	
+
 	// Try to access a bucket that doesn't exist
 	_, err = s3Manager.GetBucket(ctx, "non-existent-bucket-12345", "us-east-1")
 	if err != nil {
 		fmt.Printf("  Expected error for non-existent bucket: %v\n", err)
-		
+
 		// Demonstrate error classification
 		if cloudErr, ok := err.(*cloud.CloudError); ok {
 			fmt.Printf("  Error Code: %s\n", cloudErr.Code)
@@ -264,10 +264,10 @@ func demonstrateS3Functionality(provider *cloud.AWSProvider) {
 			fmt.Printf("  Provider: %s\n", cloudErr.Provider)
 		}
 	}
-	
+
 	// Test 6: Retry mechanism demonstration
 	fmt.Println("\n- Testing retry mechanism:")
-	
+
 	retryErr := cloud.RetryS3Operation(func() error {
 		// Simulate a retryable error on first attempt
 		currentMetrics := metrics.GetMetrics()
@@ -283,12 +283,12 @@ func demonstrateS3Functionality(provider *cloud.AWSProvider) {
 		}
 		return nil // Success on subsequent attempts
 	}, 3, 100*time.Millisecond, "TestRetry")
-	
+
 	if retryErr != nil {
 		fmt.Printf("  Retry failed: %v\n", retryErr)
 	} else {
 		fmt.Println("  Retry mechanism: SUCCESS")
 	}
-	
+
 	fmt.Println("\nS3 Manager demo completed!")
 }

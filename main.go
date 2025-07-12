@@ -19,7 +19,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"log"
 
-	"github.com/yourusername/apm/internal/routes"
+	"github.com/chaksack/apm/internal/routes"
 )
 
 func main() {

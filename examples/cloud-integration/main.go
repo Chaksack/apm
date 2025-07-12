@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/yourusername/apm/pkg/cloud"
+	"github.com/chaksack/apm/pkg/cloud"
 )
 
 func main() {
@@ -30,14 +30,14 @@ func main() {
 		if status.Installed {
 			fmt.Printf("  ✓ Installed: v%s at %s\n", status.Version, status.Path)
 			if !status.IsSupported {
-				fmt.Printf("  ⚠ Warning: Version %s is below minimum %s\n", 
+				fmt.Printf("  ⚠ Warning: Version %s is below minimum %s\n",
 					status.Version, status.MinVersion)
 			}
 		} else {
 			fmt.Printf("  ✗ Not installed\n")
 			detector, _ := cloud.NewDetectorFactory().CreateDetector(provider)
 			if detector != nil {
-				fmt.Printf("  Installation instructions:\n%s\n", 
+				fmt.Printf("  Installation instructions:\n%s\n",
 					detector.GetInstallInstructions())
 			}
 		}
@@ -84,7 +84,7 @@ func main() {
 				fmt.Println("  No registries found")
 			}
 			for _, registry := range registries {
-				fmt.Printf("  - %s (%s) in %s\n", 
+				fmt.Printf("  - %s (%s) in %s\n",
 					registry.Name, registry.Type, registry.Region)
 				fmt.Printf("    URL: %s\n", registry.URL)
 			}
@@ -103,7 +103,7 @@ func main() {
 				fmt.Println("  No clusters found")
 			}
 			for _, cluster := range clusters {
-				fmt.Printf("  - %s (%s %s)\n", 
+				fmt.Printf("  - %s (%s %s)\n",
 					cluster.Name, cluster.Type, cluster.Version)
 				fmt.Printf("    Region: %s, Status: %s, Nodes: %d\n",
 					cluster.Region, cluster.Status, cluster.NodeCount)
@@ -122,7 +122,7 @@ func main() {
 				clusterName := clusters[0].Name
 				foundCluster, foundProvider, err := multiOps.FindCluster(ctx, clusterName)
 				if err == nil {
-					fmt.Printf("Found cluster '%s' in %s\n", 
+					fmt.Printf("Found cluster '%s' in %s\n",
 						foundCluster.Name, foundProvider)
 				}
 				break
@@ -132,7 +132,7 @@ func main() {
 
 	// Step 7: Demonstrate credential management (example only)
 	fmt.Println("\n=== Credential Management Example ===")
-	
+
 	// Example of storing credentials (DO NOT use real credentials)
 	exampleCreds := &cloud.Credentials{
 		Provider:   cloud.ProviderAWS,
@@ -148,7 +148,7 @@ func main() {
 		fmt.Printf("Failed to store example credentials: %v\n", err)
 	} else {
 		fmt.Println("Example credentials stored successfully")
-		
+
 		// Retrieve credentials
 		retrieved, err := manager.GetCredentials(cloud.ProviderAWS, "example")
 		if err == nil {
@@ -174,9 +174,9 @@ func main() {
 }
 
 // Helper function to demonstrate registry authentication
-func authenticateToRegistry(ctx context.Context, manager *cloud.CloudManager, 
+func authenticateToRegistry(ctx context.Context, manager *cloud.CloudManager,
 	provider cloud.Provider, registryName string) error {
-	
+
 	p, err := manager.GetProvider(provider)
 	if err != nil {
 		return fmt.Errorf("failed to get provider: %w", err)
@@ -199,7 +199,7 @@ func authenticateToRegistry(ctx context.Context, manager *cloud.CloudManager,
 // Helper function to get kubeconfig for a cluster
 func getClusterKubeconfig(ctx context.Context, manager *cloud.CloudManager,
 	provider cloud.Provider, clusterName string) error {
-	
+
 	p, err := manager.GetProvider(provider)
 	if err != nil {
 		return fmt.Errorf("failed to get provider: %w", err)

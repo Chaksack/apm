@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/yourusername/apm/pkg/tools"
+	"github.com/chaksack/apm/pkg/tools"
 )
 
 func main() {
@@ -31,7 +31,7 @@ func main() {
 	// 2. Check health of detected tools
 	fmt.Println("\n2. Checking health of detected tools...")
 	healthFactory := tools.NewHealthCheckerFactory()
-	
+
 	for _, tool := range detectedTools {
 		checker, err := healthFactory.CreateHealthChecker(tool)
 		if err != nil {
