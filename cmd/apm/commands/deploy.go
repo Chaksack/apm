@@ -9,7 +9,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"
+	"github.com/chaksack/apm/internal/deploy"
+	"github.com/chaksack/apm/pkg/security"
 )
 
 var DeployCmd = &cobra.Command{
@@ -793,24 +794,27 @@ func (m *deployWizard) saveDockerConfig() {
 	if m.imageName == "" {
 		m.imageName = "my-app"
 	}
-	
 
 	if err := security.ValidateFilePath(m.dockerfilePath, []string{"."}); err != nil {
 		m.err = fmt.Errorf("invalid Dockerfile path: %w", err)
 		return
 	}
-	
 
+	if err := security.ValidateImageName(m.imageName); err != nil {
 		m.err = fmt.Errorf("invalid image name: %w", err)
 		return
 	}
-	
 
-		m.err = fmt.Errorf("invalid image tag: %w", err)
-		return
+	// Validate image tag if provided
+	if m.imageTag != "" {
+		// Simple validation for image tag
+		if len(m.imageTag) > 128 {
+			m.err = fmt.Errorf("image tag too long (max 128 characters)")
+			return
+		}
 	}
-	
 
+	if m.registryURL != "" {
 		if err := security.ValidateRegistryURL(m.registryURL); err != nil {
 			m.err = fmt.Errorf("invalid registry URL: %w", err)
 			return
@@ -828,14 +832,13 @@ func (m *deployWizard) saveKubernetesConfig() {
 	if m.manifestPath == "" {
 		m.manifestPath = "./k8s/"
 	}
-	
 
 	if err := security.ValidateFilePath(m.manifestPath, []string{"."}); err != nil {
 		m.err = fmt.Errorf("invalid manifest path: %w", err)
 		return
 	}
-	
 
+	if err := security.ValidateNamespace(m.namespace); err != nil {
 		m.err = fmt.Errorf("invalid namespace: %w", err)
 		return
 	}

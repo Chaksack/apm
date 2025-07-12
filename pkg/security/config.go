@@ -1,8 +1,8 @@
 package security
 
 import (
-	"github.com/yourusername/apm/pkg/security/auth"
-	"github.com/yourusername/apm/pkg/security/middleware"
+	"github.com/chaksack/apm/pkg/security/auth"
+	"github.com/chaksack/apm/pkg/security/middleware"
 )
 
 // Config represents the complete security configuration
