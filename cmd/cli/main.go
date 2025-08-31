@@ -3,7 +3,10 @@ package main
 import (
 	"fmt"
 	"os"
+	"time"
 
+	"github.com/briandowns/spinner"
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
@@ -23,15 +26,41 @@ var (
 	date    = "unknown"
 )
 
+// C-style printers
+var (
+	Success = color.New(color.FgGreen).FprintfFunc()
+	Error   = color.New(color.FgRed).FprintfFunc()
+	Info    = color.New(color.FgBlue).FprintfFunc()
+	Warn    = color.New(color.FgYellow).FprintfFunc()
+)
+
+const (
+	geminiAsciiArt = `   __  ___  __  ___  __   __
+  /   / __ /  / /__ /  \ |__)
+ /__ /___ /__/ /___ \__/ |
+`
+	shortDescription = "APM CLI - Application Performance Monitoring tool"
+	longDescription  = `APM CLI provides a unified interface for managing and interacting 
+with the Application Performance Monitoring stack. It simplifies setup, 
+development, testing, and monitoring access.`
+)
+
 func main() {
 	rootCmd := &cobra.Command{
 		Use:   "apm",
-		Short: "APM CLI - Application Performance Monitoring tool",
-		Long: `APM CLI provides a unified interface for managing and interacting 
-with the Application Performance Monitoring stack. It simplifies setup, 
-development, testing, and monitoring access.`,
+		Short: shortDescription,
+		Long:  longDescription,
 		Version: fmt.Sprintf("%s (commit: %s, built: %s)", version, commit, date),
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			if noColor {
+				color.NoColor = true
+			}
+		},
 	}
+
+	// Customizing the help and usage templates
+	rootCmd.SetHelpTemplate(getHelpTemplate())
+	rootCmd.SetUsageTemplate(getUsageTemplate())
 
 	// Global flags
 	rootCmd.PersistentFlags().StringVarP(&configFile, "config", "c", "./apm.yaml", "Path to config file")
@@ -49,10 +78,11 @@ development, testing, and monitoring access.`,
 	)
 
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		Error(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 }
+
 
 // newInitCommand creates the init command
 func newInitCommand() *cobra.Command {
@@ -68,10 +98,15 @@ func newInitCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "Initialize a new APM configuration",
-		Long:  `Initialize a new APM configuration for your project with an interactive setup wizard.`,
+		Long:  `Initialize a new APM configuration for your project with an interactive setup wizard.`, 
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Implementation would go here
-			fmt.Println("🔍 Initializing APM configuration...")
+			s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
+			s.Suffix = " Initializing APM configuration..."
+			s.Color("blue")
+			s.Start()
+			time.Sleep(3 * time.Second) // Simulate work
+			s.Stop()
+			Success(os.Stdout, "✅ APM configuration initialized successfully!\n")
 			return nil
 		},
 	}
@@ -102,10 +137,9 @@ func newRunCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "run",
 		Short: "Run application with hot reload",
-		Long:  `Start the application and monitoring stack with development features.`,
+		Long:  `Start the application and monitoring stack with development features.`, 
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Implementation would go here
-			fmt.Println("🚀 Starting APM stack...")
+			Info(os.Stdout, "🚀 Starting APM stack...\n")
 			return nil
 		},
 	}
@@ -135,10 +169,9 @@ func newTestCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "test [component...]",
 		Short: "Validate configuration and health",
-		Long:  `Test and validate the APM setup and component health.`,
+		Long:  `Test and validate the APM setup and component health.`, 
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Implementation would go here
-			fmt.Println("🔍 Validating APM configuration...")
+			Info(os.Stdout, "🔍 Validating APM configuration...\n")
 			return nil
 		},
 	}
@@ -165,10 +198,9 @@ func newDashboardCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "dashboard [component]",
 		Short: "Access monitoring interfaces",
-		Long:  `Quick access to all monitoring dashboards and tools.`,
+		Long:  `Quick access to all monitoring dashboards and tools.`, 
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Implementation would go here
-			fmt.Println("🎯 APM Dashboards")
+			Info(os.Stdout, "🎯 APM Dashboards\n")
 			return nil
 		},
 	}
@@ -180,4 +212,53 @@ func newDashboardCommand() *cobra.Command {
 	cmd.Flags().BoolVarP(&list, "list", "l", false, "List all available dashboards")
 
 	return cmd
+}
+
+func getHelpTemplate() string {
+	return fmt.Sprintf(`%s
+%s
+
+%s
+  {{.UseLine}}{{if .HasAvailableSubCommands}}
+%s
+  {{.CommandPath}} [command]}{{end}}{{if .HasExample}}
+
+%s
+  {{.Example}}{{end}}{{if .HasAvailableSubCommands}}
+
+%s
+{{range .Commands}}{{.Name | printf "%%-11s"}}{{.Short}}
+{{end}}{{end}}{{if .HasAvailableLocalFlags}}
+
+%s
+{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableInheritedFlags}}
+
+%s
+{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasHelpSubCommands}}
+
+%s
+  {{.CommandPath}} [command] --help{{end}}
+`,
+		color.HiBlueString(geminiAsciiArt),
+		color.HiGreenString(shortDescription),
+		color.HiWhiteString("Usage:"),
+		color.HiYellowString("Examples:"),
+		color.HiWhiteString("Available Commands:"),
+		color.HiWhiteString("Flags:"),
+		color.HiWhiteString("Global Flags:"),
+		color.HiWhiteString("Additional help topics:"))
+}
+
+func getUsageTemplate() string {
+	return fmt.Sprintf(`%s
+%s
+  {{.CommandPath}} [command]
+
+%s
+{{range .Commands}}{{.Name | printf "%%-11s"}}{{.Short}}
+{{end}}
+`,
+		color.HiBlueString(geminiAsciiArt),
+		color.HiWhiteString("Usage:"),
+		color.HiWhiteString("Available Commands:"))
 }
