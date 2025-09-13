@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
-	"github.com/yourusername/apm/pkg/security/auth"
+	"github.com/chaksack/apm/pkg/security/auth"
 )
 
 // AuthMiddleware provides authentication middleware

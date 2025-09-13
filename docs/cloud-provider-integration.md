@@ -261,7 +261,7 @@ All operations are logged with:
 ### Basic Setup
 
 ```go
-import "github.com/yourusername/apm/pkg/cloud"
+import "github.com/chaksack/apm/pkg/cloud"
 
 // Create cloud manager
 manager, err := cloud.NewCloudManager("~/.apm/credentials")

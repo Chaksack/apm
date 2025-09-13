@@ -7,7 +7,7 @@ This package provides configuration management for the GoFiber-based APM solutio
 ### Loading Configuration
 
 ```go
-import "github.com/yourusername/apm/internal/config"
+import "github.com/chaksack/apm/internal/config"
 
 // Load from default location (./configs/config.yaml or ./config.yaml)
 cfg, err := config.LoadConfig("")

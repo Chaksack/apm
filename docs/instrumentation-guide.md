@@ -17,7 +17,7 @@ package main
 
 import (
     "github.com/gofiber/fiber/v2"
-    "github.com/yourusername/apm/pkg/instrumentation"
+    "github.com/chaksack/apm/pkg/instrumentation"
 )
 
 func main() {

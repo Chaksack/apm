@@ -10,7 +10,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap"
 
-	"github.com/yourusername/apm/pkg/security/auth"
+	"github.com/chaksack/apm/pkg/security/auth"
 )
 
 // AuditEvent represents a security audit event

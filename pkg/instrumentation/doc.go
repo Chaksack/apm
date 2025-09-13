@@ -15,7 +15,7 @@
 //
 //	import (
 //	    "context"
-//	    "github.com/yourusername/apm/pkg/instrumentation"
+//	    "github.com/chaksack/apm/pkg/instrumentation"
 //	)
 //
 //	// Initialize tracer
@@ -39,7 +39,7 @@
 //
 //	import (
 //	    "github.com/gofiber/fiber/v2"
-//	    "github.com/yourusername/apm/pkg/instrumentation"
+//	    "github.com/chaksack/apm/pkg/instrumentation"
 //	)
 //
 //	app := fiber.New()
@@ -50,3 +50,4 @@
 // For more examples and detailed documentation, see the package README.md
 // or visit https://github.com/yourusername/apm
 package instrumentation
+ion
